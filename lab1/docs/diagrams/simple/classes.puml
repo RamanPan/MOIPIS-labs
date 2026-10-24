@@ -1,0 +1,62 @@
+@startuml
+!pragma layout smetana
+title Основные классы: кто за что отвечает
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 15
+skinparam shadowing false
+hide empty members
+
+interface WorkflowEngine {
+  +createObject()
+  +executeAction()
+  +updateParameter()
+}
+class BusinessObject {
+  id
+  classId
+  stateId
+  parameters
+}
+class CatalogService {
+  +getEffectiveParameters()
+}
+class TemplateCatalogService {
+  +resolveTemplate()
+}
+class ProcessTemplate {
+  classId
+  createRoles
+}
+class StateDefinition {
+  id
+  initial / terminal
+}
+class TransitionDefinition {
+  from / action / to
+  condition
+}
+interface StateMachine {
+  +start()
+  +send()
+  +stop()
+}
+class FileRepository {
+  +load()
+  +commit()
+}
+
+WorkflowEngine --> BusinessObject : управляет
+WorkflowEngine --> CatalogService : параметры класса
+WorkflowEngine --> TemplateCatalogService : выбирает процесс
+WorkflowEngine --> StateMachine : исполняет команды
+WorkflowEngine --> FileRepository : сохраняет результат
+TemplateCatalogService --> ProcessTemplate : находит
+ProcessTemplate *-- StateDefinition : состояния
+ProcessTemplate *-- TransitionDefinition : переходы
+
+legend bottom
+  Один BusinessObject — один собственный StateMachine.
+  Состояния и переходы берутся из ProcessTemplate, а не зашиты в Java.
+  Показаны только основные методы и поля.
+endlegend
+@enduml

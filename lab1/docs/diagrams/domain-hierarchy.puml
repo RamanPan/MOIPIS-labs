@@ -1,0 +1,56 @@
+@startuml
+!pragma layout smetana
+title Иерархия предметных классов Б.3 как данных каталога
+top to bottom direction
+object "order : ObjectClassDefinition" as order {
+  parentId = null
+  order_number : string
+  product_name : string
+  quantity : integer [1..10000]
+  total_amount : decimal [1..2000000]
+}
+object "standard_order : ObjectClassDefinition" as standard {
+  parentId = order
+  supplier_name : string
+  delivery_days : integer [1..60]
+  prepayment_percent : decimal [0..100]
+  block_reason : string
+}
+object "office_order : ObjectClassDefinition" as office {
+  parentId = standard_order
+  quantity : integer [1..500] — полная замена
+  office_location : string
+}
+object "consumables_order : ObjectClassDefinition" as consumables {
+  parentId = standard_order
+  storage_conditions : string
+}
+object "standard_order_supply : ProcessTemplate" as template {
+  classId = standard_order
+  initial = registration
+  final = completed
+  states = 10
+  transitions = 19
+}
+order --> standard : родитель → подкласс
+standard --> office : родитель → подкласс
+standard --> consumables : родитель → подкласс
+template --> standard : владелец: classId
+office ..> template : наследует ближайший шаблон
+consumables ..> template : наследует до создания своей копии
+note bottom of office
+  Эффективные параметры: от корня к потомку.
+  Одноимённое определение заменяется целиком;
+  менять тип при переопределении нельзя.
+end note
+note bottom of consumables
+  copyTemplate(sourceId, consumables_order, newId)
+  создаёт независимый собственный шаблон.
+  Исходный шаблон и office_order не меняются.
+end note
+legend bottom
+  Это НЕ Java-наследование Order / OfficeOrder.
+  Все узлы классов — экземпляры ObjectClassDefinition из JSON.
+  Бизнес-объекты представлены одним универсальным BusinessObject.
+endlegend
+@enduml

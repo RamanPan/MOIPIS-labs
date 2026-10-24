@@ -1,0 +1,46 @@
+@startuml
+!pragma layout smetana
+title Компоненты и направления зависимостей
+left to right direction
+skinparam componentStyle rectangle
+component DemoApplication as Demo
+component "WorkflowEngine\nDefaultWorkflowEngine" as Engine
+component "ObjectRuntime\n1 на активный объект" as Runtime
+component "StateMachine\nочередь + worker + состояние" as Machine
+component CatalogService as Catalog
+component TemplateCatalogService as Templates
+component "ConditionEvaluator\nDefaultConditionEvaluator" as Conditions
+component "StateMachineFactory\nадаптация условий шаблона" as Factory
+interface Repository
+component FileRepository as Files
+database "JSON-документ\nstore.json" as Store
+artifact "seed/initial-data.json" as Seed
+Demo --> Engine : команды и запросы
+Demo --> Catalog : сборка каталога
+Demo --> Templates : загрузка шаблона
+Demo --> Files : отдельное demo-хранилище
+Engine --> Catalog : классы и параметры
+Engine --> Templates : действующий шаблон
+Engine --> Repository : чтение и commit
+Engine *-- Runtime : 0..* ленивых экземпляров
+Runtime *-- Machine : собственный экземпляр
+Engine --> Factory : создание автомата
+Factory --> Machine : конфигурация из данных
+Factory --> Conditions : связывает callback guard
+Conditions --> Catalog : эффективные параметры / isInstanceOf
+Templates --> Catalog
+Templates --> Repository : сохранение копий
+Files ..|> Repository
+Files --> Store : атомарная замена
+Seed --> Files : только при отсутствии store.json
+note bottom of Runtime
+  prepare: актуальный объект, роли, типы
+  commit: объект + история
+  После commit автомат публикует новое состояние.
+end note
+note bottom of Machine
+  Универсальное ядро не знает FileRepository,
+  ролей, office_order или параметра quantity.
+  Callback условий вызывает evaluator через фабрику.
+end note
+@enduml

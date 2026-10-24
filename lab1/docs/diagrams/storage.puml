@@ -1,0 +1,115 @@
+@startuml
+!pragma layout smetana
+title Файловая модель: один JSON-документ, ссылки по id и условия ДНФ
+skinparam objectAttributeIconSize 0
+object "StoreData : JSON root" as root {
+  schemaVersion = 1
+  classes = [...]
+  roles = [...]
+  users = [...]
+  templates = [...]
+  objects = [...]
+  history = [...]
+}
+object "classes[*]" as classes {
+  id : string
+  title : string
+  parentId : string | null
+  parameters : array
+}
+object "parameters[*]" as parameter {
+  id : string
+  title : string
+  type : integer | decimal | string
+  min, max : number | null
+}
+object "users[*]" as users {
+  id : string
+  name : string
+  roles : array of role ids
+}
+object "roles[*]" as roles {
+  id : string
+  title : string
+}
+object "templates[*]" as template {
+  id, title, classId : string
+  createRoles : role ids
+  actions, predicates : arrays
+  states, transitions : arrays
+}
+object "states[*]" as states {
+  id, title : string
+  initial, final : boolean
+  roles : role ids
+  editParameters : boolean | parameter ids
+}
+object "transitions[*]" as transitions {
+  from, action, to : string
+  condition : DnfCondition | null
+}
+object "condition" as dnf {
+  groups : array of OR groups
+  each group : array of AND literals
+}
+object "groups[*][*]" as literal {
+  predicateId : string
+  negated : boolean
+}
+object "predicates[*]" as predicates {
+  id, title : string
+  parameterId, operator, value : parameter predicate
+  classId : class predicate
+}
+object "objects[*]" as objects {
+  id, classId, stateId, templateId : string
+  parameters : map of id to JSON value
+}
+object "history[*]" as history {
+  id, objectId, userId : string
+  timestamp : UTC ISO-8601
+  operation : CREATE | ACTION | UPDATE_PARAMETER
+  details : JSON object
+}
+object "history.details" as details {
+  CREATE : initialState + parameters
+  ACTION : actionId + oldState + newState
+  UPDATE_PARAMETER : parameterId + oldValue + newValue
+}
+object "seed/initial-data.json" as seed <<file>>
+object "data/store.json\nили demo/run-.../store.json" as working <<file>>
+seed ..> working : инициализация только нового файла
+working -- root
+root *-- classes
+root *-- roles
+root *-- users
+root *-- template
+root *-- objects
+root *-- history
+classes *-- parameter
+classes --> classes : parentId / наследование данных
+users --> roles : roles[]
+template --> classes : classId
+template *-- states
+template *-- transitions
+template *-- predicates
+transitions --> states : from / to
+transitions --> dnf : condition
+dnf *-- literal : OR групп / AND литералов
+literal --> predicates : predicateId; NOT = negated
+objects --> classes : classId
+objects --> template : templateId
+objects --> states : stateId
+history --> objects : objectId
+history --> users : userId
+history *-- details
+note bottom of dnf
+  (A AND B) OR (C AND NOT D):
+  groups = [[{predicateId:A, negated:false}, ...], ...]
+  Это структура данных, а не Java-выражение или SQL.
+end note
+note bottom of working
+  Очередь EventEnvelope и незавершённые futures не сохраняются.
+  commit заменяет весь снимок атомарно; частичной истории нет.
+end note
+@enduml

@@ -1,0 +1,29 @@
+@startuml
+!pragma layout smetana
+title Компоненты: путь от команды к сохранённому результату
+left to right direction
+skinparam componentStyle rectangle
+skinparam defaultFontSize 15
+skinparam shadowing false
+
+component "Демонстрация\nDemoApplication" as Demo
+component "Управление объектами\nWorkflowEngine" as Engine
+component "Классы и параметры\nCatalogService" as Catalog
+component "Шаблоны процессов\nTemplateCatalogService" as Templates
+component "События и очередь\nStateMachine" as Machine
+component "Проверка условий\nConditionEvaluator" as Conditions
+component "Сохранение JSON\nFileRepository" as Storage
+
+Demo --> Engine : команда
+Engine --> Catalog : параметры
+Engine --> Templates : шаблон
+Engine --> Machine : событие
+Engine --> Storage : объект + история
+Machine ..> Conditions : условия через callback
+
+legend bottom
+  WorkflowEngine связывает компоненты.
+  StateMachine исполняет события, FileRepository сохраняет принятый результат.
+  Фабрики, адаптеры и внутренние служебные классы скрыты.
+endlegend
+@enduml

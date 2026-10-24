@@ -1,0 +1,76 @@
+@startuml
+!pragma layout smetana
+title Б.3 — Управление заказом на поставку стандартной продукции
+hide empty description
+skinparam state {
+  BackgroundColor #F4F8FF
+  BorderColor #34527A
+}
+
+state "Регистрация" as registration
+registration : roles = order_manager
+registration : editParameters = true
+state "Согласование состава" as composition_approval
+composition_approval : roles = order_manager
+composition_approval : editParameters = true
+state "Согласование цены" as price_approval
+price_approval : roles = procurement_specialist
+price_approval : editParameters = false
+state "Согласование графика поставки" as delivery_approval
+delivery_approval : roles = logistics_specialist
+delivery_approval : editParameters = false
+state "Согласование графика оплаты" as payment_approval
+payment_approval : roles = finance_specialist
+payment_approval : editParameters = false
+state "Отложенное рассмотрение" as postponed_review
+postponed_review : roles = order_manager
+postponed_review : editParameters = false
+state "Решение о выполнении" as execution_decision
+execution_decision : roles = procurement_head
+execution_decision : editParameters = false
+state "Выполнение" as execution
+execution : roles = executor
+execution : editParameters = false
+state "Отложенное выполнение" as postponed_execution
+postponed_execution : roles = procurement_head
+postponed_execution : editParameters = false
+state "Выполнено" as completed
+completed : roles = нет
+completed : editParameters = false
+
+[*] --> registration
+registration --> composition_approval : complete
+composition_approval --> price_approval : approve [G1]
+composition_approval --> postponed_review : postpone
+price_approval --> delivery_approval : approve [G2]
+price_approval --> composition_approval : correction
+price_approval --> postponed_review : postpone
+delivery_approval --> payment_approval : approve [G3]
+delivery_approval --> composition_approval : correction
+delivery_approval --> postponed_review : postpone
+payment_approval --> execution_decision : approve [G4]
+payment_approval --> composition_approval : correction
+payment_approval --> postponed_review : postpone
+postponed_review --> composition_approval : resume_review
+execution_decision --> execution : execute
+execution_decision --> composition_approval : return_to_approval
+execution_decision --> postponed_execution : postpone_review
+execution --> completed : complete [G5]
+execution --> postponed_execution : postpone_execution
+postponed_execution --> execution_decision : reconsider
+completed --> [*]
+
+legend bottom
+  Состояний: 10. Бизнес-переходов: ровно 19.
+  Псевдосостояния [*] не являются состояниями шаблона.
+  Отсутствие [G...] означает безусловный переход.
+  G1 = (order_number_filled AND product_name_filled AND supplier_name_filled AND quantity_in_range)
+  G2 = (amount_filled AND amount_in_range)
+  G3 = (delivery_days_filled AND delivery_days_in_range)
+  G4 = (amount_in_range AND prepayment_le_30 AND NOT block_reason_filled) OR (is_office_order AND amount_in_range AND prepayment_le_50 AND NOT block_reason_filled)
+  G5 = (order_number_filled AND product_name_filled AND quantity_filled AND amount_filled AND supplier_name_filled AND delivery_days_filled AND prepayment_percent_filled)
+  G1..G5 — только сокращения для рисунка, не дополнительные предикаты.
+  Для office_order quantity_in_range использует диапазон 1..500.
+endlegend
+@enduml
+

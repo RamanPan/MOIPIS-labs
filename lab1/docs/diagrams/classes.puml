@@ -1,0 +1,337 @@
+@startuml
+!pragma layout smetana
+title Универсальный движок: основные классы и контракты
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide empty members
+
+package demo {
+  class DemoApplication {
+    +{static} main(String[]): void
+    ~{static} run(Path, PrintStream, Clock): Result
+  }
+}
+package catalog {
+  interface Catalog {
+    +findClass(id): Optional<ObjectClassDefinition>
+    +findUser(id): Optional<UserDefinition>
+    +findRole(id): Optional<RoleDefinition>
+    +findTemplate(id): Optional<ProcessTemplate>
+  }
+  class CatalogService {
+    -classes: Map<String, ObjectClassDefinition>
+    +getClass(classId): ObjectClassDefinition
+    +getEffectiveParameters(classId): Map
+    +getAncestors(classId): List
+    +isInstanceOf(classId, expectedClassId): boolean
+  }
+  class ObjectClassDefinition <<record>> {
+    id: String
+    title: String
+    parentId: String
+    parameters: List<ParameterDefinition>
+  }
+  class ParameterDefinition <<record>> {
+    id: String
+    title: String
+    type: String
+    min: BigDecimal
+    max: BigDecimal
+  }
+  class UserDefinition <<record>> {
+    id: String
+    name: String
+    roles: Set<String>
+  }
+  class RoleDefinition <<record>> {
+    id: String
+    title: String
+  }
+}
+package template {
+  class TemplateCatalogService {
+    -classes: CatalogService
+    -repository: Repository
+    +getTemplate(templateId): ProcessTemplate
+    +resolveTemplate(classId): ProcessTemplate
+    +copyTemplate(sourceId, targetClassId, newId): ProcessTemplate
+    +getTemplates(): List
+    +prepareStateMachineConfiguration(classId): StateMachineConfiguration
+  }
+  class ProcessTemplate <<record>> {
+    id: String
+    title: String
+    classId: String
+    createRoles: Set<String>
+    actions: List<ActionDefinition>
+    predicates: List<PredicateDefinition>
+    states: List<StateDefinition>
+    transitions: List<TransitionDefinition>
+  }
+  class ActionDefinition <<record>> {
+    id: String
+    title: String
+  }
+  class StateDefinition <<record>> {
+    id: String
+    title: String
+    initial: boolean
+    terminal: boolean
+    roles: Set<String>
+    editParameters: ParameterEditPolicy
+  }
+  class ParameterEditPolicy <<record>> {
+    all: boolean
+    parameterIds: Set<String>
+    +enabled(): boolean
+    +allows(parameterId): boolean
+  }
+  class TransitionDefinition <<record>> {
+    from: String
+    action: String
+    to: String
+    condition: DnfCondition
+  }
+}
+package condition {
+  interface ConditionEvaluator {
+    +evaluate(condition, predicates, context): boolean
+    +evaluatePredicate(predicate, context): boolean
+  }
+  class DefaultConditionEvaluator {
+    -classes: CatalogService
+    +evaluate(condition, predicates, context): boolean
+    +evaluatePredicate(predicate, context): boolean
+  }
+  class PredicateDefinition <<record>> {
+    id: String
+    title: String
+    parameterId: String
+    operator: String
+    value: JsonNode
+    classId: String
+  }
+  class DnfCondition <<record>> {
+    groups: List<List<ConditionLiteral>>
+  }
+  class ConditionLiteral <<record>> {
+    predicateId: String
+    negated: boolean
+  }
+  class ConditionContext <<record>> {
+    classId: String
+    parameters: Map<String, JsonNode>
+    +{static} from(BusinessObject): ConditionContext
+  }
+}
+package engine {
+  interface WorkflowEngine {
+    +createObject(userId, classId, parameters): CompletableFuture
+    +executeAction(userId, objectId, actionId): CompletableFuture
+    +updateParameter(userId, objectId, parameterId, value): CompletableFuture
+    +getObject(objectId): BusinessObject
+    +getAvailableActions(userId, objectId): List<String>
+    +getHistory(objectId): List<HistoryEntry>
+    +registerHandler(actionId, handler): void
+    +close(): void
+  }
+  class DefaultWorkflowEngine {
+    -runtimes: Map<String, ObjectRuntime>
+    -handlers: Map<String, EventHandler>
+    -creations: ExecutorService
+    -repository: Repository
+    +DefaultWorkflowEngine(Repository)
+    -send(objectId, event): CompletableFuture
+    ~commit(ObjectChange): void
+  }
+  class ObjectRuntime {
+    -machine: StateMachine
+    -template: ProcessTemplate
+    -identity: BusinessObject
+    ~send(Event): CompletableFuture
+    -prepare(Event, StateDefinition): Event
+    -handleAction(Event): JsonNode
+    -commit(Event, EventResult): void
+  }
+  class BusinessObject <<record>> {
+    id: String
+    classId: String
+    stateId: String
+    parameters: Map<String, JsonNode>
+    templateId: String
+  }
+  class HistoryEntry <<record>> {
+    id: String
+    objectId: String
+    userId: String
+    timestamp: Instant
+    operation: String
+    details: JsonNode
+  }
+  class WorkflowException {
+    -code: WorkflowError
+    +code(): WorkflowError
+  }
+}
+package statemachine {
+  interface StateMachine {
+    +start(): void
+    +send(Event): CompletableFuture<EventResult>
+    +stop(): void
+    +getCurrentState(): StateDefinition
+    +addState(StateDefinition): void
+    +registerHandler(stateId, eventType, handler): void
+    +addTransition(TransitionDefinition): void
+    +setExecutionHooks(preparer, committer): void
+  }
+  class DefaultStateMachine {
+    -currentState: StateDefinition
+    -lifecycle: StateMachineLifecycle
+    -queue: BlockingQueue<EventEnvelope>
+    -worker: Thread
+    -handlers: Map<StateEventKey, EventHandler>
+    -transitions: Map<StateEventKey, List<TransitionDefinition>>
+    -executeEvent(Event): EventResult
+  }
+  interface EventHandler {
+    +handle(Event): JsonNode
+  }
+  interface EventPreparer {
+    +prepare(Event, StateDefinition): Event
+  }
+  interface EventCommitter {
+    +commit(Event, EventResult): void
+  }
+  class Event <<record>> {
+    eventType: String
+    payload: JsonNode
+    initiator: InitiatorContext
+    context: ConditionContext
+  }
+  class InitiatorContext <<record>> {
+    userId: String
+  }
+  class EventEnvelope <<record>> {
+    event: Event
+    future: CompletableFuture<EventResult>
+  }
+  class EventResult <<record>> {
+    previousStateId: String
+    currentStateId: String
+    handlerResult: JsonNode
+  }
+  interface StateMachineFactory {
+    +create(initialStateId): StateMachine
+    +create(configuration, evaluator): StateMachine
+  }
+  class DefaultStateMachineFactory
+  class StateMachineConfiguration <<record>> {
+    classId: String
+    initialStateId: String
+    template: ProcessTemplate
+    effectiveParameters: Map
+  }
+}
+package repository {
+  interface Repository {
+    +loadOrInitialize(): StoreData
+    +load(): StoreData
+    +save(StoreData): void
+    +update(UnaryOperator): StoreData
+    +commit(ObjectChange): HistoryEntry
+  }
+  class FileRepository {
+    -storePath: Path
+    -clock: Clock
+    -mover: AtomicFileMover
+    -lock: ReentrantLock
+    -current: StoreData
+  }
+  interface AtomicFileMover {
+    +move(source: Path, target: Path): void
+  }
+  class StoreData <<record>> {
+    schemaVersion: int
+    classes: List
+    roles: List
+    users: List
+    templates: List
+    objects: List
+    history: List
+  }
+  class ObjectChange <<record>> {
+    before: BusinessObject
+    after: BusinessObject
+    userId: String
+    operation: String
+    actionId: String
+    parameterId: String
+  }
+}
+DemoApplication --> DefaultWorkflowEngine
+DemoApplication --> CatalogService
+DemoApplication --> FileRepository
+DefaultWorkflowEngine ..|> WorkflowEngine
+DefaultWorkflowEngine --> CatalogService
+DefaultWorkflowEngine --> TemplateCatalogService
+DefaultWorkflowEngine --> ConditionEvaluator
+DefaultWorkflowEngine --> Repository
+DefaultWorkflowEngine --> StateMachineFactory
+DefaultWorkflowEngine "1" *-- "0..*" ObjectRuntime
+ObjectRuntime "1" *-- "1" StateMachine
+ObjectRuntime --> BusinessObject : identity / prepared copy
+ObjectRuntime ..> ObjectChange
+ObjectRuntime ..> WorkflowException
+DefaultStateMachine ..|> StateMachine
+DefaultStateMachine --> EventHandler
+DefaultStateMachine --> EventPreparer
+DefaultStateMachine --> EventCommitter
+DefaultStateMachine "1" *-- "0..*" EventEnvelope : queue
+DefaultStateMachine --> StateDefinition : currentState
+EventEnvelope --> Event
+EventEnvelope --> EventResult
+Event --> InitiatorContext
+Event --> ConditionContext
+DefaultStateMachineFactory ..|> StateMachineFactory
+DefaultStateMachineFactory --> DefaultStateMachine : creates
+DefaultStateMachineFactory --> ConditionEvaluator : adapts guard callback
+StateMachineFactory --> StateMachineConfiguration
+StateMachineConfiguration --> ProcessTemplate
+DefaultConditionEvaluator ..|> ConditionEvaluator
+DefaultConditionEvaluator --> CatalogService
+TemplateCatalogService --> CatalogService
+TemplateCatalogService --> Repository
+CatalogService --> ObjectClassDefinition
+ObjectClassDefinition "1" *-- "0..*" ParameterDefinition
+ObjectClassDefinition "0..*" --> "0..1" ObjectClassDefinition : parentId
+UserDefinition --> RoleDefinition : roles: ids
+ProcessTemplate --> ObjectClassDefinition : classId
+ProcessTemplate *-- ActionDefinition
+ProcessTemplate *-- StateDefinition
+ProcessTemplate *-- TransitionDefinition
+ProcessTemplate *-- PredicateDefinition
+StateDefinition --> ParameterEditPolicy
+TransitionDefinition --> DnfCondition
+DnfCondition *-- ConditionLiteral : OR groups / AND literals
+ConditionLiteral --> PredicateDefinition : predicateId
+FileRepository ..|> Repository
+FileRepository --> AtomicFileMover
+Repository --> StoreData
+Repository --> ObjectChange
+StoreData o-- BusinessObject
+StoreData o-- HistoryEntry
+StoreData o-- ProcessTemplate
+HistoryEntry --> BusinessObject : objectId
+BusinessObject --> ProcessTemplate : templateId
+BusinessObject --> ObjectClassDefinition : classId
+note bottom of Catalog
+  Catalog — общий контракт первоначального каркаса.
+  CatalogService не реализует этот широкий интерфейс;
+  DemoApplication использует конкретные сервисы чтения.
+end note
+note bottom of DefaultStateMachine
+  Нет ветвления по бизнес-состояниям заказа.
+  Состояния и действия — строковые id.
+  Хранилище и роли подключаются через hooks ObjectRuntime.
+end note
+@enduml

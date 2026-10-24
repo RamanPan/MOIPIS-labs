@@ -1,0 +1,35 @@
+@startuml
+!pragma layout smetana
+title Классы заказов: наследование параметров и шаблона
+skinparam defaultFontSize 15
+skinparam shadowing false
+
+object "order\nОбщий заказ" as Order {
+  общие параметры заказа
+  quantity: 1..10000
+}
+object "standard_order\nСтандартная продукция" as Standard {
+  поставщик, поставка, оплата
+  собственный шаблон Б.3
+}
+object "office_order\nОфисный заказ" as Office {
+  quantity: 1..500
+  расположение офиса
+  наследует шаблон Б.3
+}
+object "consumables_order\nРасходные материалы" as Consumables {
+  условия хранения
+  наследует шаблон Б.3
+  может получить свою копию
+}
+
+Order --> Standard
+Standard --> Office
+Standard --> Consumables
+
+legend bottom
+  Стрелка направлена от родителя к подклассу.
+  Это определения из JSON, а не Java-классы Order / OfficeOrder.
+  Подкласс наследует параметры и может переопределить диапазон, но не тип.
+endlegend
+@enduml

@@ -1,0 +1,51 @@
+@startuml
+!pragma layout smetana
+title Хранение: всё в одном JSON-файле
+skinparam defaultFontSize 15
+skinparam shadowing false
+
+object "store.json" as Store {
+  schemaVersion
+  classes, roles, users
+  templates
+  objects
+  history
+}
+object "Каталог\nclasses, roles, users" as Catalog {
+  классы и их параметры
+  parentId — родитель класса
+  пользователи и роли
+}
+object "Шаблоны\ntemplates" as Templates {
+  состояния и действия
+  переходы и предикаты
+}
+object "Объекты\nobjects" as Objects {
+  classId / templateId
+  текущее состояние
+  значения параметров
+}
+object "История\nhistory" as History {
+  кто и когда
+  какая операция
+  старые и новые значения
+}
+object "Условия\nДНФ" as Dnf {
+  OR между группами
+  AND внутри группы
+  NOT у литерала
+}
+
+Store *-- Catalog
+Store *-- Templates
+Store *-- Objects
+Store *-- History
+Templates --> Dnf : условия переходов
+Objects --> Templates : templateId
+History --> Objects : objectId
+
+legend bottom
+  Объект и запись истории сохраняются одной атомарной операцией.
+  Очередь сообщений существует только в памяти.
+endlegend
+@enduml

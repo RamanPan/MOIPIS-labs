@@ -1,0 +1,100 @@
+@startuml
+title executeAction: очередь, проверки и фиксация перед публикацией состояния
+autonumber
+actor "Инициатор" as Caller
+participant "DefaultWorkflowEngine" as Engine
+participant "ObjectRuntime\nprepare / commit" as Runtime
+participant "DefaultStateMachine" as Machine
+queue "BlockingQueue\nEventEnvelope" as Queue
+participant "worker\nодного объекта" as Worker
+participant "ConditionEvaluator" as Conditions
+participant "EventHandler" as Handler
+participant "FileRepository" as Repo
+database "store.json" as Store
+participant "CompletableFuture" as Future
+
+Caller -> Engine : executeAction(userId, objectId, actionId)
+activate Engine
+opt Первый запрос к объекту
+  Engine -> Repo : load()
+  Repo --> Engine : сохранённый BusinessObject
+  Engine -> Runtime : создать автомат с сохранённым stateId
+  Runtime -> Machine : states, transitions, handlers, hooks; start()
+end
+Engine -> Runtime : send(Event)
+Runtime -> Machine : send(Event)
+Machine -> Machine : копия события; проверка STARTED
+Machine -> Queue : add(EventEnvelope(event, future))
+Machine --> Runtime : future
+Runtime --> Engine : future
+Engine --> Caller : CompletableFuture<EventResult>
+deactivate Engine
+
+Worker -> Queue : take() — блокирующее ожидание
+Queue --> Worker : EventEnvelope
+Worker -> Machine : snapshotEvent(eventType)
+Machine --> Worker : source, handler, transitions, hooks
+Worker -> Runtime : prepare(event, source)
+Runtime -> Repo : load()
+Repo --> Runtime : актуальные объект и пользователь
+Runtime -> Runtime : final? роль состояния? действие допустимо?
+alt Отказ по состоянию / правам / действию
+  Runtime --> Worker : WorkflowException
+  Worker -> Future : completeExceptionally(error)
+else Предварительные проверки успешны
+  Runtime --> Worker : Event + ConditionContext реального класса
+  loop Все переходы по (stateId, eventType)
+    alt condition == null
+      Worker -> Worker : кандидат допустим
+    else Условная дуга
+      Worker -> Conditions : evaluate(DNF, predicates, context)
+      Conditions --> Worker : true / false
+    end
+  end
+  alt Нет подходящих переходов
+    Worker -> Future : completeExceptionally(NoApplicableTransitionException)
+  else Более одного подходящего перехода
+    Worker -> Future : completeExceptionally(AmbiguousTransitionException)
+  else Единственный подходящий переход
+    Worker -> Handler : handle(preparedEvent)
+    alt Исключение handler
+      Handler --> Worker : exception
+      Worker -> Future : completeExceptionally(error)
+    else Handler успешен
+      Handler --> Worker : JsonNode result
+      Worker -> Runtime : commit(event, EventResult(source, target, result))
+      Runtime -> Runtime : подготовить BusinessObject after / ObjectChange
+      Runtime -> Repo : commit(ObjectChange)
+      activate Repo
+      Repo -> Repo : lock общего пути; перечитать JSON
+      Repo -> Repo : сверить before; копия снимка; одна HistoryEntry
+      Repo -> Repo : сериализовать temp; force(true)
+      Repo -> Store : Files.move(ATOMIC_MOVE, REPLACE_EXISTING)
+      alt Ошибка записи
+        Store --> Repo : IOException
+        Repo --> Runtime : ошибка; старый снимок сохранён
+        Runtime --> Worker : PERSISTENCE_ERROR
+        Worker -> Future : completeExceptionally(error)
+      else Атомарная замена успешна
+        Store --> Repo : success
+        Repo -> Repo : опубликовать current = prepared
+        Repo --> Runtime : HistoryEntry
+        Runtime --> Worker : commit успешен
+        Worker -> Machine : currentState = target
+        Worker -> Future : complete(EventResult)
+      end
+      deactivate Repo
+    end
+  end
+end
+Future --> Caller : результат либо причина отказа
+note over Worker, Machine
+  При исключении состояние автомата не меняется.
+  Worker продолжает обработку следующего сообщения.
+  Реестр конфигурации не блокируется на время handler или I/O.
+end note
+note over Repo, Store
+  Объект и одна запись истории фиксируются одним JSON-снимком.
+  Очередь на диск не записывается.
+end note
+@enduml

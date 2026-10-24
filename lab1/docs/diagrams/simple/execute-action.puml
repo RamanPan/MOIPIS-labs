@@ -1,0 +1,39 @@
+@startuml
+title Выполнение действия: от команды до результата
+autonumber
+hide footbox
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor "Пользователь" as User
+participant "WorkflowEngine\nи ObjectRuntime" as Engine
+participant "StateMachine\nочередь + worker" as Machine
+participant "ConditionEvaluator" as Conditions
+participant "EventHandler" as Handler
+database "FileRepository\nJSON" as Storage
+
+User -> Engine : выполнить действие
+Engine -> Machine : поставить событие в очередь
+Machine --> User : CompletableFuture через движок
+Machine -> Machine : worker получает событие
+Machine -> Engine : проверить права и состояние
+Engine --> Machine : актуальные данные объекта
+Machine -> Conditions : проверить условия переходов
+Conditions --> Machine : результаты true / false
+Machine -> Machine : выбрать единственный переход
+Machine -> Handler : выполнить обработчик
+Handler --> Machine : результат
+Machine -> Engine : зафиксировать операцию
+Engine -> Storage : сохранить объект и историю вместе
+Storage --> Engine : сохранение успешно
+Engine --> Machine : commit завершён
+Machine -> Machine : изменить текущее состояние
+Machine --> User : завершить CompletableFuture
+
+legend bottom
+  Показан успешный путь.
+  При отказе future завершается ошибкой, объект и история не меняются.
+  Состояние автомата меняется только после успешной записи.
+endlegend
+@enduml

@@ -1,0 +1,53 @@
+@startuml
+!pragma layout smetana
+title Б.3: основной путь, возвраты и отложения
+hide empty description
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam state {
+  BackgroundColor #F1F6FD
+  BorderColor #46658B
+}
+
+state "Регистрация" as registration
+state "Согласование\nсостава" as composition_approval
+state "Согласование\nцены" as price_approval
+state "Согласование\nпоставки" as delivery_approval
+state "Согласование\nоплаты" as payment_approval
+state "Решение\nо выполнении" as execution_decision
+state "Выполнение" as execution
+state "Выполнено" as completed #DFF1E4
+state "Отложенное\nрассмотрение" as postponed_review #FFF2D5
+state "Отложенное\nвыполнение" as postponed_execution #FFF2D5
+
+[*] --> registration
+registration --> composition_approval : Завершить регистрацию
+composition_approval --> price_approval : Согласовать
+price_approval --> delivery_approval : Согласовать
+delivery_approval --> payment_approval : Согласовать
+payment_approval --> execution_decision : Согласовать
+execution_decision --> execution : Выполнять
+execution --> completed : Завершить
+completed --> [*]
+
+price_approval --> composition_approval : На исправление
+delivery_approval --> composition_approval : На исправление
+payment_approval --> composition_approval : На исправление
+execution_decision --> composition_approval : На согласование
+
+composition_approval --> postponed_review : Отложить
+price_approval --> postponed_review : Отложить
+delivery_approval --> postponed_review : Отложить
+payment_approval --> postponed_review : Отложить
+postponed_review --> composition_approval : Возобновить
+
+execution_decision --> postponed_execution : Отложить решение
+execution --> postponed_execution : Отложить выполнение
+postponed_execution --> execution_decision : Пересмотреть
+
+legend bottom
+  Все 10 состояний и 19 переходов сохранены.
+  Согласование и завершение выполнения требуют истинности условий.
+  Роли и подробные формулы скрыты; отказы состояние не меняют.
+endlegend
+@enduml
