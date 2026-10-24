@@ -1,0 +1,770 @@
+{
+  "schemaVersion": 1,
+  "classes": [
+    {
+      "id": "order",
+      "title": "Заказ",
+      "parentId": null,
+      "parameters": [
+        {"id": "order_number", "title": "Номер заказа", "type": "string"},
+        {"id": "product_name", "title": "Наименование продукции", "type": "string"},
+        {"id": "quantity", "title": "Количество", "type": "integer", "min": 1, "max": 10000},
+        {"id": "total_amount", "title": "Общая сумма", "type": "decimal", "min": 1, "max": 2000000}
+      ]
+    },
+    {
+      "id": "standard_order",
+      "title": "Заказ стандартной продукции",
+      "parentId": "order",
+      "parameters": [
+        {"id": "supplier_name", "title": "Наименование поставщика", "type": "string"},
+        {"id": "delivery_days", "title": "Срок поставки в днях", "type": "integer", "min": 1, "max": 60},
+        {"id": "prepayment_percent", "title": "Процент предоплаты", "type": "decimal", "min": 0, "max": 100},
+        {"id": "block_reason", "title": "Причина блокировки", "type": "string"}
+      ]
+    },
+    {
+      "id": "office_order",
+      "title": "Заказ для офиса",
+      "parentId": "standard_order",
+      "parameters": [
+        {"id": "quantity", "title": "Количество для офиса", "type": "integer", "min": 1, "max": 500},
+        {"id": "office_location", "title": "Расположение офиса", "type": "string"}
+      ]
+    },
+    {
+      "id": "consumables_order",
+      "title": "Заказ расходных материалов",
+      "parentId": "standard_order",
+      "parameters": [
+        {"id": "storage_conditions", "title": "Условия хранения", "type": "string"}
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "order_manager",
+      "title": "Менеджер заказа"
+    },
+    {
+      "id": "procurement_specialist",
+      "title": "Специалист по закупкам"
+    },
+    {
+      "id": "logistics_specialist",
+      "title": "Специалист по логистике"
+    },
+    {
+      "id": "finance_specialist",
+      "title": "Финансовый специалист"
+    },
+    {
+      "id": "procurement_head",
+      "title": "Руководитель закупок"
+    },
+    {
+      "id": "executor",
+      "title": "Исполнитель"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_manager",
+      "name": "Анна — менеджер заказа",
+      "roles": [
+        "order_manager"
+      ]
+    },
+    {
+      "id": "user_procurement",
+      "name": "Борис — специалист по закупкам",
+      "roles": [
+        "procurement_specialist"
+      ]
+    },
+    {
+      "id": "user_logistics",
+      "name": "Вера — специалист по логистике",
+      "roles": [
+        "logistics_specialist"
+      ]
+    },
+    {
+      "id": "user_finance",
+      "name": "Глеб — финансовый специалист",
+      "roles": [
+        "finance_specialist"
+      ]
+    },
+    {
+      "id": "user_head",
+      "name": "Дарья — руководитель закупок",
+      "roles": [
+        "procurement_head"
+      ]
+    },
+    {
+      "id": "user_executor",
+      "name": "Егор — исполнитель",
+      "roles": [
+        "executor"
+      ]
+    },
+    {
+      "id": "user_coordinator",
+      "name": "Ирина — координатор демонстрации",
+      "roles": [
+        "order_manager",
+        "procurement_specialist",
+        "logistics_specialist",
+        "finance_specialist",
+        "procurement_head",
+        "executor"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "standard_order_supply",
+      "title": "Б.3 — Управление заказом на поставку стандартной продукции",
+      "classId": "standard_order",
+      "createRoles": [
+        "order_manager"
+      ],
+      "actions": [
+        {
+          "id": "complete",
+          "title": "Завершить этап"
+        },
+        {
+          "id": "approve",
+          "title": "Согласовать"
+        },
+        {
+          "id": "postpone",
+          "title": "Отложить рассмотрение"
+        },
+        {
+          "id": "correction",
+          "title": "Вернуть на корректировку"
+        },
+        {
+          "id": "resume_review",
+          "title": "Возобновить рассмотрение"
+        },
+        {
+          "id": "execute",
+          "title": "Приступить к выполнению"
+        },
+        {
+          "id": "return_to_approval",
+          "title": "Вернуть на согласование"
+        },
+        {
+          "id": "postpone_review",
+          "title": "Отложить решение о выполнении"
+        },
+        {
+          "id": "postpone_execution",
+          "title": "Отложить выполнение"
+        },
+        {
+          "id": "reconsider",
+          "title": "Пересмотреть решение"
+        }
+      ],
+      "predicates": [
+        {
+          "id": "order_number_filled",
+          "title": "Номер заказа: значение задано",
+          "parameterId": "order_number",
+          "operator": "filled"
+        },
+        {
+          "id": "product_name_filled",
+          "title": "Наименование продукции: значение задано",
+          "parameterId": "product_name",
+          "operator": "filled"
+        },
+        {
+          "id": "quantity_filled",
+          "title": "Количество: значение задано",
+          "parameterId": "quantity",
+          "operator": "filled"
+        },
+        {
+          "id": "amount_filled",
+          "title": "Общая сумма: значение задано",
+          "parameterId": "total_amount",
+          "operator": "filled"
+        },
+        {
+          "id": "supplier_name_filled",
+          "title": "Поставщик: значение задано",
+          "parameterId": "supplier_name",
+          "operator": "filled"
+        },
+        {
+          "id": "delivery_days_filled",
+          "title": "Срок поставки: значение задано",
+          "parameterId": "delivery_days",
+          "operator": "filled"
+        },
+        {
+          "id": "prepayment_percent_filled",
+          "title": "Процент предоплаты: значение задано",
+          "parameterId": "prepayment_percent",
+          "operator": "filled"
+        },
+        {
+          "id": "block_reason_filled",
+          "title": "Причина блокировки задана",
+          "parameterId": "block_reason",
+          "operator": "filled"
+        },
+        {
+          "id": "quantity_in_range",
+          "title": "Количество в диапазоне класса объекта",
+          "parameterId": "quantity",
+          "operator": "in_range"
+        },
+        {
+          "id": "amount_in_range",
+          "title": "Сумма в допустимом диапазоне",
+          "parameterId": "total_amount",
+          "operator": "in_range"
+        },
+        {
+          "id": "delivery_days_in_range",
+          "title": "Срок поставки в допустимом диапазоне",
+          "parameterId": "delivery_days",
+          "operator": "in_range"
+        },
+        {
+          "id": "prepayment_le_30",
+          "title": "Предоплата не более 30 процентов",
+          "parameterId": "prepayment_percent",
+          "operator": "<=",
+          "value": 30
+        },
+        {
+          "id": "prepayment_le_50",
+          "title": "Предоплата не более 50 процентов",
+          "parameterId": "prepayment_percent",
+          "operator": "<=",
+          "value": 50
+        },
+        {
+          "id": "is_office_order",
+          "title": "Заказ для офиса или его подкласса",
+          "classId": "office_order"
+        }
+      ],
+      "states": [
+        {
+          "id": "registration",
+          "title": "Регистрация",
+          "initial": true,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ],
+          "editParameters": true
+        },
+        {
+          "id": "composition_approval",
+          "title": "Согласование состава",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ],
+          "editParameters": true
+        },
+        {
+          "id": "price_approval",
+          "title": "Согласование цены",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "procurement_specialist"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "delivery_approval",
+          "title": "Согласование графика поставки",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "logistics_specialist"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "payment_approval",
+          "title": "Согласование графика оплаты",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "finance_specialist"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "postponed_review",
+          "title": "Отложенное рассмотрение",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "execution_decision",
+          "title": "Решение о выполнении",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "procurement_head"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "execution",
+          "title": "Выполнение",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "executor"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "postponed_execution",
+          "title": "Отложенное выполнение",
+          "initial": false,
+          "final": false,
+          "roles": [
+            "procurement_head"
+          ],
+          "editParameters": false
+        },
+        {
+          "id": "completed",
+          "title": "Выполнено",
+          "initial": false,
+          "final": true,
+          "roles": [],
+          "editParameters": false
+        }
+      ],
+      "transitions": [
+        {
+          "from": "registration",
+          "action": "complete",
+          "to": "composition_approval"
+        },
+        {
+          "from": "composition_approval",
+          "action": "approve",
+          "to": "price_approval",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "order_number_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "product_name_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "supplier_name_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "quantity_in_range",
+                  "negated": false
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "from": "composition_approval",
+          "action": "postpone",
+          "to": "postponed_review"
+        },
+        {
+          "from": "price_approval",
+          "action": "approve",
+          "to": "delivery_approval",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "amount_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "amount_in_range",
+                  "negated": false
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "from": "price_approval",
+          "action": "correction",
+          "to": "composition_approval"
+        },
+        {
+          "from": "price_approval",
+          "action": "postpone",
+          "to": "postponed_review"
+        },
+        {
+          "from": "delivery_approval",
+          "action": "approve",
+          "to": "payment_approval",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "delivery_days_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "delivery_days_in_range",
+                  "negated": false
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "from": "delivery_approval",
+          "action": "correction",
+          "to": "composition_approval"
+        },
+        {
+          "from": "delivery_approval",
+          "action": "postpone",
+          "to": "postponed_review"
+        },
+        {
+          "from": "payment_approval",
+          "action": "approve",
+          "to": "execution_decision",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "amount_in_range",
+                  "negated": false
+                },
+                {
+                  "predicateId": "prepayment_le_30",
+                  "negated": false
+                },
+                {
+                  "predicateId": "block_reason_filled",
+                  "negated": true
+                }
+              ],
+              [
+                {
+                  "predicateId": "is_office_order",
+                  "negated": false
+                },
+                {
+                  "predicateId": "amount_in_range",
+                  "negated": false
+                },
+                {
+                  "predicateId": "prepayment_le_50",
+                  "negated": false
+                },
+                {
+                  "predicateId": "block_reason_filled",
+                  "negated": true
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "from": "payment_approval",
+          "action": "correction",
+          "to": "composition_approval"
+        },
+        {
+          "from": "payment_approval",
+          "action": "postpone",
+          "to": "postponed_review"
+        },
+        {
+          "from": "postponed_review",
+          "action": "resume_review",
+          "to": "composition_approval"
+        },
+        {
+          "from": "execution_decision",
+          "action": "execute",
+          "to": "execution"
+        },
+        {
+          "from": "execution_decision",
+          "action": "return_to_approval",
+          "to": "composition_approval"
+        },
+        {
+          "from": "execution_decision",
+          "action": "postpone_review",
+          "to": "postponed_execution"
+        },
+        {
+          "from": "execution",
+          "action": "complete",
+          "to": "completed",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "order_number_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "product_name_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "quantity_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "amount_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "supplier_name_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "delivery_days_filled",
+                  "negated": false
+                },
+                {
+                  "predicateId": "prepayment_percent_filled",
+                  "negated": false
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "from": "execution",
+          "action": "postpone_execution",
+          "to": "postponed_execution"
+        },
+        {
+          "from": "postponed_execution",
+          "action": "reconsider",
+          "to": "execution_decision"
+        }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "demo-standard-valid",
+      "classId": "standard_order",
+      "parameters": {
+        "order_number": "Б3-001",
+        "product_name": "Стандартные металлические стеллажи",
+        "quantity": 800,
+        "total_amount": 1200000,
+        "supplier_name": "ООО «Стандарт»",
+        "delivery_days": 20,
+        "prepayment_percent": 20,
+        "block_reason": null
+      },
+      "stateId": "registration",
+      "templateId": "standard_order_supply"
+    },
+    {
+      "id": "demo-office-valid",
+      "classId": "office_order",
+      "parameters": {
+        "order_number": "Б3-002",
+        "product_name": "Офисные кресла",
+        "quantity": 120,
+        "total_amount": 360000,
+        "supplier_name": "ООО «Офис»",
+        "delivery_days": 14,
+        "prepayment_percent": 40,
+        "block_reason": null,
+        "office_location": "Москва, центральный офис"
+      },
+      "stateId": "registration",
+      "templateId": "standard_order_supply"
+    },
+    {
+      "id": "demo-office-quantity-700",
+      "classId": "office_order",
+      "parameters": {
+        "order_number": "Б3-003",
+        "product_name": "Офисные кресла",
+        "quantity": 700,
+        "total_amount": 360000,
+        "supplier_name": "ООО «Офис»",
+        "delivery_days": 14,
+        "prepayment_percent": 40,
+        "block_reason": null,
+        "office_location": "Москва, центральный офис"
+      },
+      "stateId": "registration",
+      "templateId": "standard_order_supply"
+    },
+    {
+      "id": "demo-missing-product",
+      "classId": "standard_order",
+      "parameters": {
+        "order_number": "Б3-004",
+        "product_name": null,
+        "quantity": 100,
+        "total_amount": 1200000,
+        "supplier_name": "ООО «Стандарт»",
+        "delivery_days": 20,
+        "prepayment_percent": 20,
+        "block_reason": null
+      },
+      "stateId": "registration",
+      "templateId": "standard_order_supply"
+    },
+    {
+      "id": "demo-invalid-prepayment",
+      "classId": "standard_order",
+      "parameters": {
+        "order_number": "Б3-005",
+        "product_name": "Стандартные металлические стеллажи",
+        "quantity": 100,
+        "total_amount": 1200000,
+        "supplier_name": "ООО «Стандарт»",
+        "delivery_days": 20,
+        "prepayment_percent": 60,
+        "block_reason": null
+      },
+      "stateId": "registration",
+      "templateId": "standard_order_supply"
+    }
+  ],
+  "history": [
+    {
+      "id": "seed-create-demo-standard-valid",
+      "objectId": "demo-standard-valid",
+      "userId": "user_manager",
+      "timestamp": "2026-10-22T00:00:00Z",
+      "operation": "CREATE",
+      "details": {
+        "initialState": "registration",
+        "parameters": {
+          "order_number": "Б3-001",
+          "product_name": "Стандартные металлические стеллажи",
+          "quantity": 800,
+          "total_amount": 1200000,
+          "supplier_name": "ООО «Стандарт»",
+          "delivery_days": 20,
+          "prepayment_percent": 20,
+          "block_reason": null
+        }
+      }
+    },
+    {
+      "id": "seed-create-demo-office-valid",
+      "objectId": "demo-office-valid",
+      "userId": "user_manager",
+      "timestamp": "2026-10-22T00:00:00Z",
+      "operation": "CREATE",
+      "details": {
+        "initialState": "registration",
+        "parameters": {
+          "order_number": "Б3-002",
+          "product_name": "Офисные кресла",
+          "quantity": 120,
+          "total_amount": 360000,
+          "supplier_name": "ООО «Офис»",
+          "delivery_days": 14,
+          "prepayment_percent": 40,
+          "block_reason": null,
+          "office_location": "Москва, центральный офис"
+        }
+      }
+    },
+    {
+      "id": "seed-create-demo-office-quantity-700",
+      "objectId": "demo-office-quantity-700",
+      "userId": "user_manager",
+      "timestamp": "2026-10-22T00:00:00Z",
+      "operation": "CREATE",
+      "details": {
+        "initialState": "registration",
+        "parameters": {
+          "order_number": "Б3-003",
+          "product_name": "Офисные кресла",
+          "quantity": 700,
+          "total_amount": 360000,
+          "supplier_name": "ООО «Офис»",
+          "delivery_days": 14,
+          "prepayment_percent": 40,
+          "block_reason": null,
+          "office_location": "Москва, центральный офис"
+        }
+      }
+    },
+    {
+      "id": "seed-create-demo-missing-product",
+      "objectId": "demo-missing-product",
+      "userId": "user_manager",
+      "timestamp": "2026-10-22T00:00:00Z",
+      "operation": "CREATE",
+      "details": {
+        "initialState": "registration",
+        "parameters": {
+          "order_number": "Б3-004",
+          "product_name": null,
+          "quantity": 100,
+          "total_amount": 1200000,
+          "supplier_name": "ООО «Стандарт»",
+          "delivery_days": 20,
+          "prepayment_percent": 20,
+          "block_reason": null
+        }
+      }
+    },
+    {
+      "id": "seed-create-demo-invalid-prepayment",
+      "objectId": "demo-invalid-prepayment",
+      "userId": "user_manager",
+      "timestamp": "2026-10-22T00:00:00Z",
+      "operation": "CREATE",
+      "details": {
+        "initialState": "registration",
+        "parameters": {
+          "order_number": "Б3-005",
+          "product_name": "Стандартные металлические стеллажи",
+          "quantity": 100,
+          "total_amount": 1200000,
+          "supplier_name": "ООО «Стандарт»",
+          "delivery_days": 20,
+          "prepayment_percent": 60,
+          "block_reason": null
+        }
+      }
+    }
+  ]
+}
