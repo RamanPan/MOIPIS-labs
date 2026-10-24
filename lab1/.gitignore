@@ -1,0 +1,6 @@
+/target/
+/.tools/
+/data/store.json
+/data/store.json.*
+/data/.store.json-*.tmp
+/demo/
