@@ -1,0 +1,20 @@
+{
+  "id": "ambiguous-test",
+  "title": "Два одновременно допустимых перехода",
+  "classId": "standard_order",
+  "createRoles": [],
+  "actions": [{"id": "choose", "title": "Выбрать"}],
+  "predicates": [
+    {"id": "positive", "parameterId": "quantity", "operator": ">=", "value": 1},
+    {"id": "small", "parameterId": "quantity", "operator": "<=", "value": 1000}
+  ],
+  "states": [
+    {"id": "start", "title": "Начало", "initial": true, "final": false, "roles": [], "editParameters": []},
+    {"id": "first", "title": "Первое", "initial": false, "final": true, "roles": [], "editParameters": []},
+    {"id": "second", "title": "Второе", "initial": false, "final": true, "roles": [], "editParameters": []}
+  ],
+  "transitions": [
+    {"from": "start", "action": "choose", "to": "first", "condition": {"groups": [[{"predicateId": "positive", "negated": false}]]}},
+    {"from": "start", "action": "choose", "to": "second", "condition": {"groups": [[{"predicateId": "small", "negated": false}]]}}
+  ]
+}
