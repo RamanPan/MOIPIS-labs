@@ -1,0 +1,16 @@
+package ru.moipis.workflow.engine.exception;
+
+public enum WorkflowError {
+    NOT_FOUND,
+    ACCESS_DENIED,
+    INVALID_ACTION,
+    CONDITION_NOT_MET,
+    FINAL_STATE,
+    TEMPLATE_ERROR,
+    UNKNOWN_PARAMETER,
+    INVALID_PARAMETER_TYPE,
+    PERSISTENCE_ERROR,
+    CONCURRENT_MODIFICATION,
+    HANDLER_ERROR,
+    ENGINE_CLOSED
+}

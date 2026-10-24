@@ -1,0 +1,17 @@
+{
+  "id": "standard-process", "title": "Test process", "classId": "standard_order",
+  "createRoles": ["creator"],
+  "actions": [{"id":"submit","title":"Submit"},{"id":"approve","title":"Approve"},{"id":"hold","title":"Hold"}],
+  "predicates": [{"id":"range","title":"Quantity range","parameterId":"quantity","operator":"in_range"}],
+  "states": [
+    {"id":"draft","title":"Draft","initial":true,"final":false,"roles":["operator"],"editParameters":true},
+    {"id":"review","title":"Review","initial":false,"final":false,"roles":["manager"],"editParameters":false},
+    {"id":"done","title":"Done","initial":false,"final":true,"roles":["operator","manager"],"editParameters":true}
+  ],
+  "transitions": [
+    {"from":"draft","action":"submit","to":"review","condition":{"groups":[[{"predicateId":"range","negated":false}]]}},
+    {"from":"draft","action":"submit","to":"review","condition":{"groups":[[{"predicateId":"range","negated":true},{"predicateId":"range","negated":false}]]}},
+    {"from":"draft","action":"hold","to":"draft"},
+    {"from":"review","action":"approve","to":"done"}
+  ]
+}
