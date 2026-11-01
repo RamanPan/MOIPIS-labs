@@ -11,6 +11,7 @@ import ru.moipis.workflow.engine.exception.WorkflowError;
 import ru.moipis.workflow.engine.exception.WorkflowException;
 import ru.moipis.workflow.engine.model.BusinessObject;
 import ru.moipis.workflow.engine.model.HistoryEntry;
+import ru.moipis.workflow.engine.model.WorkflowAccess;
 import ru.moipis.workflow.repository.Repository;
 import ru.moipis.workflow.repository.model.ObjectChange;
 import ru.moipis.workflow.repository.model.StoreData;
@@ -121,16 +122,24 @@ public final class DefaultWorkflowEngine implements WorkflowEngine {
 
     @Override
     public List<String> getAvailableActions(String userId, String objectId) {
+        return getAccess(userId, objectId).availableActionIds();
+    }
+
+    @Override
+    public WorkflowAccess getAccess(String userId, String objectId) {
         StoreData store = load();
         BusinessObject object = object(store, objectId);
         UserDefinition user = user(store, userId);
         ProcessTemplate template = template(object);
         StateDefinition state = state(template, object.stateId());
-        if (state.terminal() || !hasRole(user, state.roles())) {
-            return List.of();
+        if (!WorkflowAccessPolicy.canAct(user, state)) {
+            return new WorkflowAccess(state.id(), List.of(), false, Set.of());
         }
-        return template.transitions().stream().filter(transition -> transition.from().equals(state.id()))
+        List<String> actions = template.transitions().stream().filter(transition -> transition.from().equals(state.id()))
                 .map(TransitionDefinition::action).distinct().toList();
+        Set<String> editable = catalog.getEffectiveParameters(object.classId()).keySet().stream()
+                .filter(state.editParameters()::allows).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return new WorkflowAccess(state.id(), actions, state.editParameters().enabled(), editable);
     }
 
     @Override
@@ -222,7 +231,7 @@ public final class DefaultWorkflowEngine implements WorkflowEngine {
         }
         rejectReservedAction(configuration.template());
         UserDefinition user = user(load(), userId);
-        if (!hasRole(user, configuration.template().createRoles())) {
+        if (!WorkflowAccessPolicy.hasRole(user, configuration.template().createRoles())) {
             throw new WorkflowException(ACCESS_DENIED, "User has no creation role for class: " + classId);
         }
         values.forEach((id, value) -> ParameterValues.validate(id, value, configuration.effectiveParameters()));
@@ -289,10 +298,6 @@ public final class DefaultWorkflowEngine implements WorkflowEngine {
     static StateDefinition state(ProcessTemplate template, String stateId) {
         return template.states().stream().filter(state -> state.id().equals(stateId)).findFirst()
                 .orElseThrow(() -> new WorkflowException(TEMPLATE_ERROR, "Unknown saved state: " + stateId));
-    }
-
-    static boolean hasRole(UserDefinition user, Set<String> roles) {
-        return user.roles() != null && roles != null && user.roles().stream().anyMatch(roles::contains);
     }
 
     private static void rejectReservedAction(ProcessTemplate template) {

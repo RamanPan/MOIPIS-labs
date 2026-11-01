@@ -15,6 +15,8 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jackson.version>2.20.1</jackson.version>
         <junit.version>5.13.4</junit.version>
+        <javalin.version>7.2.4</javalin.version>
+        <application.mainClass>ru.moipis.workflow.demo.DemoApplication</application.mainClass>
     </properties>
 
     <dependencyManagement>
@@ -30,6 +32,22 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>cytoscape</artifactId>
+            <version>3.34.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.javalin</groupId>
+            <artifactId>javalin</artifactId>
+            <version>${javalin.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.20</version>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -68,9 +86,18 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.6.4</version>
                 <configuration>
-                    <mainClass>ru.moipis.workflow.demo.DemoApplication</mainClass>
+                    <mainClass>${application.mainClass}</mainClass>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>web</id>
+            <properties>
+                <application.mainClass>ru.moipis.workflow.web.WebApplication</application.mainClass>
+            </properties>
+        </profile>
+    </profiles>
 </project>

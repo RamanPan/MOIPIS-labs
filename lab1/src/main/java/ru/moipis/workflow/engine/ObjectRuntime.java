@@ -62,12 +62,7 @@ final class ObjectRuntime implements AutoCloseable {
             throw new WorkflowException(CONCURRENT_MODIFICATION, "Object changed outside its state machine: " + identity.id());
         }
         var user = DefaultWorkflowEngine.user(store, event.initiator().userId());
-        if (state.terminal()) {
-            throw new WorkflowException(FINAL_STATE, "Object is in final state: " + state.id());
-        }
-        if (!DefaultWorkflowEngine.hasRole(user, state.roles())) {
-            throw new WorkflowException(ACCESS_DENIED, "User has no role for state: " + state.id());
-        }
+        WorkflowAccessPolicy.requireStateAccess(user, state);
         BusinessObject updated = null;
         String parameterId = null;
         if (UPDATE_PARAMETER.equals(event.eventType())) {

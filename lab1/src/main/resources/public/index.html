@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Рабочее пространство для управления заказами на поставку">
+  <title>Заказы · Workflow Manager</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#/orders" aria-label="Workflow Manager — список заказов">
+        <span class="brand-mark" aria-hidden="true">w<span>·</span></span>
+        <span>Workflow <strong>Manager</strong></span>
+      </a>
+      <div class="topbar-actions">
+        <div class="user-picker">
+          <label for="current-user">Учебный пользователь</label>
+          <select id="current-user" disabled><option>Загрузка пользователей…</option></select>
+          <p id="current-roles" class="user-roles" aria-live="polite">Роли загружаются</p>
+        </div>
+        <button id="new-order" class="button button-primary" type="button" disabled>
+          <span aria-hidden="true">＋</span> Новый заказ
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="workspace" tabindex="-1">
+    <nav class="breadcrumbs" aria-label="Навигация"><a href="#/orders">Рабочее пространство</a><span aria-hidden="true">/</span><span id="breadcrumb-current">Заказы</span></nav>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+    <div id="users-error" class="notice notice-error" role="alert" hidden>
+      <span id="users-error-text"></span><button id="retry-users" type="button" class="button button-small">Повторить</button>
+    </div>
+    <noscript><p class="notice notice-error">Для работы интерфейса включите JavaScript в браузере.</p></noscript>
+
+    <section id="orders-view" aria-labelledby="orders-title">
+      <div class="page-heading">
+        <div><p class="eyebrow">Управление поставками</p><h1 id="orders-title">Заказы на поставку</h1><p class="page-description">Все заказы, их параметры и текущие состояния в одном месте.</p></div>
+        <span class="workspace-label"><span class="label-dot" aria-hidden="true"></span> Учебное пространство</span>
+      </div>
+      <div class="metrics" aria-label="Обзор заказов">
+        <article class="metric"><span class="metric-icon" aria-hidden="true">▤</span><div><p>Всего заказов</p><strong id="total-orders">—</strong></div><span class="metric-caption">в рабочем пространстве</span></article>
+        <article class="metric"><span class="metric-icon metric-icon-blue" aria-hidden="true">◈</span><div><p>Классов объектов</p><strong id="total-classes">—</strong></div><span class="metric-caption">среди заказов</span></article>
+        <article class="metric"><span class="metric-icon metric-icon-green" aria-hidden="true">◎</span><div><p>Текущих состояний</p><strong id="total-states">—</strong></div><span class="metric-caption">среди заказов</span></article>
+      </div>
+
+      <section class="orders-panel" aria-labelledby="list-title">
+        <div class="panel-heading"><div class="section-title"><h2 id="list-title">Все заказы</h2><span id="orders-count" class="count-badge">—</span></div><button id="refresh-orders" class="button button-quiet" type="button"><span aria-hidden="true">↻</span> Обновить</button></div>
+        <div class="toolbar">
+          <div class="search-control"><span aria-hidden="true">⌕</span><label for="order-search" class="sr-only">Поиск по номеру или наименованию</label><input id="order-search" type="search" placeholder="Найти заказ по номеру или наименованию" autocomplete="off"></div>
+          <div class="filter-control"><label for="state-filter">Состояние</label><select id="state-filter"><option value="">Все состояния</option></select></div>
+        </div>
+        <div class="list-meta"><span id="results-caption" aria-live="polite">Загрузка заказов…</span><button id="clear-filters" class="text-button" type="button" hidden>Сбросить фильтры</button></div>
+        <div id="orders-loading" class="loading-grid" role="status" aria-label="Загрузка заказов"><span class="skeleton-card"></span><span class="skeleton-card"></span><span class="skeleton-card"></span></div>
+        <div id="orders-error" class="empty-state" role="alert" hidden><span class="empty-symbol" aria-hidden="true">!</span><h3>Не удалось загрузить заказы</h3><p id="orders-error-text"></p><button id="retry-orders" class="button" type="button">Попробовать снова</button></div>
+        <div id="orders-empty" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">▤</span><h3 id="empty-title">Здесь появятся ваши заказы</h3><p id="empty-description">Создайте первый заказ с помощью кнопки «Новый заказ».</p></div>
+        <div id="orders-grid" class="orders-grid" aria-label="Список заказов"></div>
+      </section>
+    </section>
+
+    <section id="detail-view" aria-labelledby="detail-title" hidden>
+      <a class="back-link" href="#/orders">← Все заказы</a>
+      <div id="operation-message" class="notice" role="status" aria-live="polite" hidden></div>
+      <p id="detail-refresh-status" class="load-status" role="status" aria-live="polite" hidden></p>
+      <div id="detail-loading" class="empty-state" role="status">Загрузка карточки заказа…</div>
+      <div id="detail-error" class="empty-state" role="alert" hidden><h2>Не удалось открыть заказ</h2><p id="detail-error-text"></p><button id="retry-detail" type="button" class="button">Повторить</button></div>
+      <article id="detail-content" hidden>
+        <div class="page-heading"><div><p id="detail-number" class="eyebrow"></p><h1 id="detail-title" tabindex="-1"></h1><p id="detail-class" class="page-description"></p></div><span id="detail-state" class="status-badge"></span></div>
+        <div class="detail-context"><div><span class="context-label">Действуем от имени</span><strong id="detail-user"></strong><p id="detail-roles"></p></div><div><span class="context-label">Шаблон процесса</span><strong id="detail-template"></strong><span id="detail-template-id" class="object-id"></span></div><button id="refresh-detail" type="button" class="button button-quiet">↻ Обновить карточку</button></div>
+        <div id="detail-warning" class="notice notice-error" role="alert" hidden></div>
+        <div class="order-tabs" role="tablist" aria-label="Разделы карточки заказа">
+          <button id="tab-overview" type="button" role="tab" aria-selected="true" aria-controls="order-overview" tabindex="0">Обзор заказа</button>
+          <button id="tab-history" type="button" role="tab" aria-selected="false" aria-controls="order-history" tabindex="-1">История изменений <span id="history-tab-count" class="count-badge">—</span></button>
+        </div>
+        <div id="order-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
+        <section class="detail-panel graph-panel" aria-labelledby="graph-title">
+          <div class="panel-heading"><div><h2 id="graph-title">Бизнес-процесс</h2><p id="graph-counts" class="panel-caption"></p></div><div class="graph-tools"><button id="graph-zoom-out" type="button" class="icon-button" aria-label="Уменьшить граф">−</button><button id="graph-zoom-in" type="button" class="icon-button" aria-label="Увеличить граф">＋</button><button id="graph-fit" type="button" class="button button-small">Показать весь процесс</button></div></div>
+          <div id="graph-message" class="graph-message" role="status" hidden></div>
+          <div id="process-graph" class="process-graph" role="img" aria-label="Граф состояний процесса"></div>
+          <div class="graph-legend" aria-label="Легенда графа"><span><i class="legend-current"></i>Текущее</span><span><i class="legend-initial"></i>Начальное</span><span><i class="legend-terminal"></i>Конечное</span><span><i class="legend-visited"></i>Посещённое</span><span><i></i>Остальные состояния</span></div>
+          <p id="graph-selection" class="graph-selection" aria-live="polite">Выберите состояние, чтобы посмотреть информацию. Переход выполняется только действием.</p>
+          <details id="graph-fallback" class="graph-fallback"><summary>Все состояния и переходы текстом</summary><div id="graph-state-list" class="graph-state-list"></div><ul id="graph-transition-list" class="graph-transition-list"></ul></details>
+        </section>
+        <section class="detail-panel actions-panel" aria-labelledby="actions-title"><div class="panel-heading"><h2 id="actions-title">Доступные действия</h2><span id="access-caption" class="panel-caption"></span></div><div id="actions-list" class="actions-list" aria-live="polite"></div><p class="panel-caption">Условия перехода проверяются сервером при выполнении действия.</p></section>
+        <section class="detail-panel" aria-labelledby="parameters-title"><div class="panel-heading"><h2 id="parameters-title">Параметры заказа</h2><span id="detail-id" class="object-id"></span></div><dl id="detail-parameters" class="parameter-list"></dl></section>
+        </div>
+        <section id="order-history" class="detail-panel history-panel" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden><div class="panel-heading"><div><h2 id="history-title">История изменений</h2><p class="panel-caption">Принятые операции в хронологическом порядке</p></div><span id="history-count" class="count-badge">—</span></div><p id="history-timezone" class="history-timezone"></p><p id="history-message" class="panel-caption" role="status" aria-live="polite" hidden></p><ol id="history-list" class="history-list" aria-label="Журнал операций" aria-busy="false"></ol></section>
+      </article>
+    </section>
+    <footer class="page-footer"><span>Workflow Manager</span><span>Управление заказами на поставку</span></footer>
+  </main>
+
+  <dialog id="create-dialog" aria-labelledby="create-title" aria-describedby="create-description">
+    <div class="dialog-heading"><div><p class="eyebrow">Новый процесс</p><h2 id="create-title">Создание заказа</h2></div><button id="close-create" class="icon-button" type="button" aria-label="Закрыть форму">×</button></div>
+    <p id="create-description" class="dialog-description">Выберите класс и заполните нужные параметры заказа.</p>
+    <form id="create-form" novalidate>
+      <div class="creation-context"><span>Создаём от имени</span><strong id="creation-user"></strong></div>
+      <div class="class-field"><label for="object-class">Класс объекта <span class="field-required">*</span></label><select id="object-class" required><option value="">Загрузка классов…</option></select></div>
+      <div id="parameters-loading" class="inline-loading" role="status" hidden>Загрузка параметров класса…</div>
+      <p id="parameters-placeholder" class="form-placeholder">После выбора класса здесь появятся его параметры.</p>
+      <div id="parameters-error" class="notice notice-error" role="alert" hidden><span id="parameters-error-text"></span><button id="retry-parameters" type="button" class="button button-small">Повторить</button></div>
+      <div id="parameter-fields" class="form-grid"></div>
+      <p class="form-note">Параметры необязательны. Диапазоны показаны для справки и проверяются при переходах процесса.</p>
+      <div id="create-error" class="notice notice-error" role="alert" hidden><strong id="create-error-title"></strong><span id="create-error-text"></span></div>
+      <div class="dialog-footer"><button id="cancel-create" type="button" class="button">Отмена</button><button id="submit-create" type="submit" class="button button-primary" disabled>Создать заказ <span aria-hidden="true">↗</span></button></div>
+    </form>
+  </dialog>
+  <dialog id="edit-dialog" aria-labelledby="edit-title" aria-describedby="edit-description">
+    <div class="dialog-heading"><div><p class="eyebrow">Параметр заказа</p><h2 id="edit-title">Изменение параметра</h2></div><button id="close-edit" class="icon-button" type="button" aria-label="Закрыть редактирование">×</button></div>
+    <p id="edit-description" class="dialog-description">Изменение будет сохранено в истории заказа.</p>
+    <form id="edit-form" novalidate>
+      <label id="edit-label" for="edit-value"></label><input id="edit-value" class="edit-value" type="text" aria-describedby="edit-hint">
+      <select id="edit-mode" class="parameter-mode" aria-label="Режим изменения"><option value="value">Значение</option><option value="null">Очистить значение</option></select>
+      <p id="edit-hint" class="field-hint"></p><div id="edit-error" class="notice notice-error" role="alert" hidden></div>
+      <div class="dialog-footer"><button id="cancel-edit" type="button" class="button">Отмена</button><button id="save-parameter" type="submit" class="button button-primary">Сохранить изменение</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

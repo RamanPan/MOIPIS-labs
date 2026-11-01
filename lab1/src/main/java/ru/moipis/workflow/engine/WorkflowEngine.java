@@ -3,6 +3,7 @@ package ru.moipis.workflow.engine;
 import com.fasterxml.jackson.databind.JsonNode;
 import ru.moipis.workflow.engine.model.BusinessObject;
 import ru.moipis.workflow.engine.model.HistoryEntry;
+import ru.moipis.workflow.engine.model.WorkflowAccess;
 import ru.moipis.workflow.statemachine.event.EventResult;
 import ru.moipis.workflow.statemachine.handler.EventHandler;
 
@@ -21,6 +22,8 @@ public interface WorkflowEngine extends AutoCloseable {
     BusinessObject getObject(String objectId);
 
     List<String> getAvailableActions(String userId, String objectId);
+
+    WorkflowAccess getAccess(String userId, String objectId);
 
     List<HistoryEntry> getHistory(String objectId);
 
