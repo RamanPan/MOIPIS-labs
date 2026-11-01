@@ -1,12 +1,15 @@
 @startuml
 !pragma layout smetana
-title Компоненты: путь от команды к сохранённому результату
-left to right direction
+title Компоненты: браузер, HTTP-слой и существующий движок
+top to bottom direction
 skinparam componentStyle rectangle
 skinparam defaultFontSize 15
 skinparam shadowing false
 
 component "Демонстрация\nDemoApplication" as Demo
+component "Веб-интерфейс\nHTML / CSS / JavaScript" as Browser
+component "Локальный HTTP-сервер\nJavalin и контроллер" as Web
+component "Проекции чтения\nWorkflowQueryAdapter" as Queries
 component "Управление объектами\nWorkflowEngine" as Engine
 component "Классы и параметры\nCatalogService" as Catalog
 component "Шаблоны процессов\nTemplateCatalogService" as Templates
@@ -15,6 +18,13 @@ component "Проверка условий\nConditionEvaluator" as Conditions
 component "Сохранение JSON\nFileRepository" as Storage
 
 Demo --> Engine : команда
+Browser --> Web : fetch / JSON
+Web --> Engine : команды и права
+Web --> Queries : чтение для UI
+Queries --> Engine : объект, доступ, история
+Queries --> Catalog : определения параметров
+Queries --> Templates : действующий процесс
+Queries --> Storage : каталог и список объектов
 Engine --> Catalog : параметры
 Engine --> Templates : шаблон
 Engine --> Machine : событие
@@ -22,8 +32,10 @@ Engine --> Storage : объект + история
 Machine ..> Conditions : условия через callback
 
 legend bottom
-  WorkflowEngine связывает компоненты.
+  WebApplication собирает сервер и те же компоненты ядра.
+  Контроллер передаёт команды; бизнес-правила проверяет WorkflowEngine.
   StateMachine исполняет события, FileRepository сохраняет принятый результат.
-  Фабрики, адаптеры и внутренние служебные классы скрыты.
+  HTTP-успех возвращается после завершения future, без дублирования очереди.
+  Фабрики и внутренние callback-адаптеры ядра скрыты.
 endlegend
 @enduml

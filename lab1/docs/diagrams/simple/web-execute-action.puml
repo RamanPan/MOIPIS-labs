@@ -1,0 +1,45 @@
+@startuml
+title HTTP-команда: успех только после фиксации результата
+autonumber
+hide footbox
+skinparam defaultFontSize 15
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+
+actor "Пользователь" as User
+participant "Веб-интерфейс" as Ui
+participant "Javalin\nконтроллер / ошибки" as Web
+participant "WorkflowEngine\nи очередь объекта" as Engine
+database "FileRepository\nstore.json" as Store
+
+User -> Ui : нажать действие
+Ui -> Ui : заблокировать повторное нажатие
+Ui -> Web : POST /api/objects/{id}/actions
+Web -> Engine : executeAction(userId, id, actionId)
+Engine --> Web : CompletableFuture
+Web -> Web : ctx.future(): асинхронно ждать
+Engine -> Engine : worker проверяет состояние, роль и ДНФ
+alt Операция принята и запись успешна
+  Engine -> Store : commit: объект и история вместе
+  Store --> Engine : атомарная запись завершена
+  Engine -> Engine : опубликовать состояние автомата
+  Engine --> Web : future завершён успешно
+  Web --> Ui : 200 / JSON результата
+  Ui -> Web : GET object / process / access / history
+  Web --> Ui : подтверждённые данные
+  Ui -> Ui : обновить карточку, граф и timeline
+else Отказ проверки, обработчика или записи
+  Engine --> Web : future завершён исключением
+  Web --> Ui : 4xx / 5xx и единая JSON-ошибка
+  Ui -> Web : перечитать данные карточки
+  Web --> Ui : сохранённый результат
+  Ui -> Ui : показать причину, без фиктивной истории
+end
+Ui -> Ui : снять блокировку
+
+legend bottom
+  PATCH параметра проходит через ту же очередь и фиксацию.
+  При отказе нет новой записи истории и локальной смены состояния.
+  Создание объекта выполняется отдельным executor движка.
+endlegend
+@enduml

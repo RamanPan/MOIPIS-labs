@@ -59,6 +59,28 @@ class WebErrorHandlingTest {
                 """, 404, "NOT_FOUND");
     }
 
+    @Test void classWithoutAProcessIsAConflictAndDoesNotChangeStore() throws Exception {
+        unchanged("POST", "/api/objects", """
+                {"userId":"user_manager","classId":"order","parameters":{"order_number":"ROOT-FAIL"}}
+                """, 409, "NO_PROCESS_TEMPLATE");
+    }
+
+    @Test void invalidConfiguredTemplateRemainsAServerError() throws Exception {
+        fixture.repository.update(store -> {
+            var templates = store.templates().stream().map(template ->
+                    new ru.moipis.workflow.template.model.ProcessTemplate(template.id(), template.title(), template.classId(),
+                            template.createRoles(), template.actions(), template.predicates(),
+                            template.states().stream().map(state -> new ru.moipis.workflow.template.model.StateDefinition(
+                                    state.id(), state.title(), false, state.terminal(), state.roles(), state.editParameters())).toList(),
+                            template.transitions())).toList();
+            return new ru.moipis.workflow.repository.model.StoreData(store.schemaVersion(), store.classes(),
+                    store.roles(), store.users(), templates, store.objects(), store.history());
+        });
+        unchanged("POST", "/api/objects", """
+                {"userId":"user_manager","classId":"office_order","parameters":{}}
+                """, 500, "TEMPLATE_ERROR");
+    }
+
     @Test void readOnlyAndTerminalStatesAreCheckedByTheBackend() throws Exception {
         String objectRoot = "/api/objects/demo-office-valid";
         action(objectRoot, "complete");

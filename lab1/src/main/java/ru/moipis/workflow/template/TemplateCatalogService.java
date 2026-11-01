@@ -13,6 +13,7 @@ import ru.moipis.workflow.template.model.ActionDefinition;
 import ru.moipis.workflow.template.model.ProcessTemplate;
 import ru.moipis.workflow.template.model.StateDefinition;
 import ru.moipis.workflow.template.model.TransitionDefinition;
+import ru.moipis.workflow.template.exception.NoTemplateForClassException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,7 +122,7 @@ public final class TemplateCatalogService {
                 return inherited;
             }
         }
-        throw new IllegalArgumentException("No template for class or its ancestors: " + classId);
+        throw new NoTemplateForClassException(classId);
     }
 
     private void validateReferences(ProcessTemplate template, Set<String> roleIds) {

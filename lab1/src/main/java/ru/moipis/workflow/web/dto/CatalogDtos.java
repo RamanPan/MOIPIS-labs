@@ -8,7 +8,7 @@ public final class CatalogDtos {
     private CatalogDtos() { }
 
     public record UserDto(String id, String name, List<String> roles, Map<String, String> roleTitles) { }
-    public record ClassDto(String id, String title, String parentId) { }
+    public record ClassDto(String id, String title, String parentId, String templateId) { }
     public record ParameterDto(String id, String title, String type, BigDecimal min, BigDecimal max) { }
     public record ActionDto(String id, String title) { }
 }

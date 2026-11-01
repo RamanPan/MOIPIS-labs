@@ -1,0 +1,35 @@
+@startuml
+!pragma layout smetana
+title Веб-интерфейс: список, создание и карточка заказа
+skinparam componentStyle rectangle
+skinparam defaultFontSize 15
+skinparam shadowing false
+
+package "Браузер: HTML / CSS / vanilla JavaScript" {
+  component "Общая панель\nУчебный пользователь и роли" as User
+  component "Список заказов\nПоиск и фильтр состояния" as List
+  component "Диалог создания\nПоля из определений класса" as Create
+  package "Карточка выбранного заказа" {
+    component "Вкладка Обзор\nПараметры, действия, Cytoscape-граф" as Overview
+    component "Вкладка История изменений\nTimeline подтверждённых операций" as History
+  }
+}
+component "Локальный backend /api\n127.0.0.1:7070" as Api
+
+User ..> Overview : смена пользователя: обновить доступ
+List --> Create : Новый заказ
+List --> Overview : открыть заказ
+Create --> Overview : после успешного POST
+Overview <--> History : переключить вкладку
+List --> Api : GET objects
+Create --> Api : GET classes / parameters\nPOST objects
+Overview --> Api : GET object / process / access\nPOST actions / PATCH parameter
+History --> Api : GET history
+
+legend bottom
+  Классы, параметры, состояния и переходы загружаются с backend.
+  После команды объект, процесс, доступ и история перечитываются.
+  Граф показывает состояние; клик по узлу не выполняет переход.
+  Выбор пользователя учебный и не является аутентификацией.
+endlegend
+@enduml

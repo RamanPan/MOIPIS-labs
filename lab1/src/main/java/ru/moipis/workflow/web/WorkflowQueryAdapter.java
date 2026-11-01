@@ -9,6 +9,7 @@ import ru.moipis.workflow.engine.model.HistoryEntry;
 import ru.moipis.workflow.repository.Repository;
 import ru.moipis.workflow.repository.model.StoreData;
 import ru.moipis.workflow.template.TemplateCatalogService;
+import ru.moipis.workflow.template.exception.NoTemplateForClassException;
 import ru.moipis.workflow.template.model.ProcessTemplate;
 import ru.moipis.workflow.template.model.StateDefinition;
 import ru.moipis.workflow.web.dto.*;
@@ -51,7 +52,18 @@ public final class WorkflowQueryAdapter {
     }
 
     public List<ClassDto> classes() {
-        return load().classes().stream().map(definition -> new ClassDto(definition.id(), definition.title(), definition.parentId())).toList();
+        return load().classes().stream().map(definition -> new ClassDto(definition.id(), definition.title(),
+                definition.parentId(), classTemplateId(definition.id()))).toList();
+    }
+
+    private String classTemplateId(String classId) {
+        try {
+            return templates.resolveTemplate(classId).id();
+        } catch (NoTemplateForClassException absent) {
+            return null;
+        } catch (IOException failure) {
+            throw new WorkflowException(PERSISTENCE_ERROR, "Cannot read template", failure);
+        }
     }
 
     public List<ParameterDto> parameters(String classId) {

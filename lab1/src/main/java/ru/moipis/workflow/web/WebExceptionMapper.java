@@ -4,6 +4,7 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpResponseException;
 import ru.moipis.workflow.engine.exception.WorkflowException;
 import ru.moipis.workflow.statemachine.exception.AmbiguousTransitionException;
+import ru.moipis.workflow.template.exception.NoTemplateForClassException;
 import ru.moipis.workflow.web.dto.ApiError;
 
 import java.util.Map;
@@ -27,12 +28,17 @@ public final class WebExceptionMapper {
                 case ACCESS_DENIED -> 403;
                 case UNKNOWN_PARAMETER, INVALID_PARAMETER_TYPE -> 400;
                 case INVALID_ACTION, CONDITION_NOT_MET, FINAL_STATE, CONCURRENT_MODIFICATION -> 409;
-                case TEMPLATE_ERROR -> workflow.getCause() instanceof AmbiguousTransitionException ? 409 : 500;
+                case TEMPLATE_ERROR -> workflow.getCause() instanceof AmbiguousTransitionException
+                        || workflow.getCause() instanceof NoTemplateForClassException ? 409 : 500;
                 case ENGINE_CLOSED -> 503;
                 case PERSISTENCE_ERROR, HANDLER_ERROR -> 500;
             };
             code = workflow.code().name();
             message = status >= 500 ? "Операция временно недоступна" : workflow.getMessage();
+            if (workflow.getCause() instanceof NoTemplateForClassException absent) {
+                code = "NO_PROCESS_TEMPLATE";
+                message = "Для класса «" + absent.classId() + "» не настроен процесс. Выберите класс с шаблоном процесса.";
+            }
         } else if (failure instanceof HttpResponseException http) {
             status = http.getStatus();
             code = switch (status) {

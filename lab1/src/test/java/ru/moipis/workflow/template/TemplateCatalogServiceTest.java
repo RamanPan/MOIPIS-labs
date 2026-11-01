@@ -24,6 +24,7 @@ import ru.moipis.workflow.template.model.ActionDefinition;
 import ru.moipis.workflow.template.model.ProcessTemplate;
 import ru.moipis.workflow.template.model.StateDefinition;
 import ru.moipis.workflow.template.model.TransitionDefinition;
+import ru.moipis.workflow.template.exception.NoTemplateForClassException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -79,11 +80,12 @@ class TemplateCatalogServiceTest {
 
     @Test
     void rejectsResolutionWithoutAnyTemplate() throws IOException {
-        assertThrows(IllegalArgumentException.class, () -> catalog.resolveTemplate("order"));
+        var absent = assertThrows(NoTemplateForClassException.class, () -> catalog.resolveTemplate("order"));
+        assertEquals("order", absent.classId());
         repository.data = store(List.of());
 
         assertTrue(catalog.getTemplates().isEmpty());
-        assertThrows(IllegalArgumentException.class, () -> catalog.resolveTemplate("office_order"));
+        assertThrows(NoTemplateForClassException.class, () -> catalog.resolveTemplate("office_order"));
         assertThrows(IllegalArgumentException.class,
                 () -> catalog.prepareStateMachineConfiguration("office_order"));
     }

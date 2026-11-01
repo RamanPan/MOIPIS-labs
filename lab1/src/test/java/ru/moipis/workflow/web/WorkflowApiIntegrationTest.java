@@ -4,8 +4,16 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import ru.moipis.workflow.repository.model.StoreData;
+import ru.moipis.workflow.template.model.ProcessTemplate;
+import ru.moipis.workflow.template.model.StateDefinition;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -52,6 +60,49 @@ class WorkflowApiIntegrationTest {
         assertEquals(6, fixture.repository.load().objects().size());
         assertEquals("CREATE", fixture.engine.getHistory(id).getFirst().operation());
         assertEquals(object, fixture.json(fixture.send("GET", "/api/objects/" + id, null)));
+    }
+
+    @Test void classCatalogReportsOwnAndInheritedTemplatesWithoutDroppingBaseClasses() throws Exception {
+        var bytes = Files.readAllBytes(directory.resolve("store.json"));
+        var classes = classCatalog();
+        assertEquals(Set.of("order", "standard_order", "office_order", "consumables_order"), classes.keySet());
+        assertTrue(classes.get("order").has("templateId"));
+        assertTrue(classes.get("order").path("templateId").isNull());
+        for (String id : List.of("standard_order", "office_order", "consumables_order")) {
+            assertEquals("standard_order_supply", classes.get(id).path("templateId").asText());
+        }
+        assertArrayEquals(bytes, Files.readAllBytes(directory.resolve("store.json")));
+
+        fixture.templates.copyTemplate("standard_order_supply", "office_order", "office_copy");
+        classes = classCatalog();
+        assertEquals("office_copy", classes.get("office_order").path("templateId").asText());
+        assertEquals("standard_order_supply", classes.get("consumables_order").path("templateId").asText());
+    }
+
+    @Test void baseClassBecomesAvailableWhenItHasAnActualTemplate() throws Exception {
+        var rootTemplate = new ProcessTemplate("root_process", "Root process", "order", Set.of("order_manager"),
+                List.of(), List.of(), List.of(new StateDefinition("draft", "Draft", true, false,
+                Set.of("order_manager"), true)), List.of());
+        fixture.repository.update(store -> {
+            var templates = new java.util.ArrayList<>(store.templates());
+            templates.add(rootTemplate);
+            return new StoreData(store.schemaVersion(), store.classes(), store.roles(), store.users(),
+                    templates, store.objects(), store.history());
+        });
+        assertEquals("root_process", classCatalog().get("order").path("templateId").asText());
+        var created = fixture.send("POST", "/api/objects", """
+                {"userId":"user_manager","classId":"order","parameters":{"order_number":"ROOT-001"}}
+                """);
+        assertEquals(201, created.statusCode(), created.body());
+        assertEquals("root_process", fixture.json(created).path("templateId").asText());
+        assertEquals("draft", fixture.json(created).path("stateId").asText());
+    }
+
+    private Map<String, com.fasterxml.jackson.databind.JsonNode> classCatalog() throws Exception {
+        var response = fixture.send("GET", "/api/classes", null);
+        assertEquals(200, response.statusCode(), response.body());
+        return StreamSupport.stream(fixture.json(response).spliterator(), false)
+                .collect(Collectors.toMap(node -> node.path("id").asText(), Function.identity()));
     }
 
     @Test void returnsInheritedProcessAndAccessWithoutEvaluatingFalseConditions() throws Exception {

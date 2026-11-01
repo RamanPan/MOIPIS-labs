@@ -140,12 +140,13 @@ async function openCreate() {
   const previous = $('object-class').value;
   $('object-class').disabled = true;
   try {
-    const classes = await api.classes(classesRequest.signal);
+    const catalog = await api.classes(classesRequest.signal);
     if (version !== classesVersion || !$('create-dialog').open) return;
+    const classes = catalog.filter(entry => entry.templateId);
     $('object-class').replaceChildren(option('', 'Выберите класс заказа'), ...classes.map((entry) => option(entry.id, entry.title || entry.id)));
     $('object-class').value = classes.some((entry) => entry.id === previous) ? previous : '';
-    if (!classes.length) throw new Error('В каталоге пока нет классов объектов.');
     await loadParameters();
+    if (!classes.length) throw new Error('Нет классов с настроенным процессом для создания заказа.');
   } catch (error) {
     if (error.name !== 'AbortError' && version === classesVersion) {
       $('parameters-error-text').textContent = errorText(error);

@@ -10,6 +10,21 @@ interface WorkflowEngine {
   +createObject()
   +executeAction()
   +updateParameter()
+  +getAccess()
+  +getHistory()
+}
+class WebApplication {
+  +start()
+  +close()
+}
+class WorkflowApiController {
+  +register()
+}
+class WorkflowQueryAdapter {
+  +object()
+  +process()
+  +access()
+  +history()
 }
 class BusinessObject {
   id
@@ -46,6 +61,12 @@ class FileRepository {
 }
 
 WorkflowEngine --> BusinessObject : управляет
+WebApplication ..> WorkflowApiController : сборка через фабрику
+WebApplication --> WorkflowEngine : жизненный цикл
+WorkflowApiController --> WorkflowEngine : команды
+WorkflowApiController --> WorkflowQueryAdapter : чтение
+WorkflowQueryAdapter --> WorkflowEngine : объект и права
+WorkflowQueryAdapter --> TemplateCatalogService : схема
 WorkflowEngine --> CatalogService : параметры класса
 WorkflowEngine --> TemplateCatalogService : выбирает процесс
 WorkflowEngine --> StateMachine : исполняет команды
@@ -57,6 +78,7 @@ ProcessTemplate *-- TransitionDefinition : переходы
 legend bottom
   Один BusinessObject — один собственный StateMachine.
   Состояния и переходы берутся из ProcessTemplate, а не зашиты в Java.
+  Контроллер и DTO не реализуют бизнес-правила.
   Показаны только основные методы и поля.
 endlegend
 @enduml

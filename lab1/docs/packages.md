@@ -18,6 +18,8 @@ ru.moipis.workflow
 │       └── UserDefinition
 ├── template
 │   ├── TemplateCatalogService
+│   ├── exception
+│   │   └── NoTemplateForClassException
 │   └── model
 │       ├── ActionDefinition
 │       ├── ParameterEditPolicy
