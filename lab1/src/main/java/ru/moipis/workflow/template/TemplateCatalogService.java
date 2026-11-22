@@ -31,10 +31,17 @@ public final class TemplateCatalogService {
 
     private final CatalogService classes;
     private final Repository repository;
+    private final boolean allowAbsentPredicateParameters;
 
     public TemplateCatalogService(CatalogService classes, Repository repository) throws IOException {
+        this(classes, repository, false);
+    }
+
+    public TemplateCatalogService(CatalogService classes, Repository repository,
+                                  boolean allowAbsentPredicateParameters) throws IOException {
         this.classes = required(classes, "Class catalog");
         this.repository = required(repository, "Repository");
+        this.allowAbsentPredicateParameters = allowAbsentPredicateParameters;
         loadTemplates();
     }
 
@@ -146,7 +153,8 @@ public final class TemplateCatalogService {
                     throw new IllegalArgumentException("Predicate cannot reference both a class and a parameter: " + predicate.id());
                 }
                 classes.getClass(predicate.classId());
-            } else {
+            } else if (!allowAbsentPredicateParameters || predicate.parameterId() == null
+                    || predicate.parameterId().isBlank()) {
                 requireReference(predicate.parameterId(), parameterIds, "parameter of predicate " + predicate.id());
             }
         }

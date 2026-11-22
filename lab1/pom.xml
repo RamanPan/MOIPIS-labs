@@ -94,6 +94,18 @@
 
     <profiles>
         <profile>
+            <id>task-3-1-1</id>
+            <properties>
+                <application.mainClass>ru.moipis.workflow.demo.Task311DemoApplication</application.mainClass>
+            </properties>
+        </profile>
+        <profile>
+            <id>web-3-1-1</id>
+            <properties>
+                <application.mainClass>ru.moipis.workflow.web.Task311WebApplication</application.mainClass>
+            </properties>
+        </profile>
+        <profile>
             <id>coordination</id>
             <properties>
                 <application.mainClass>ru.moipis.workflow.demo.CoordinationDemoApplication</application.mainClass>

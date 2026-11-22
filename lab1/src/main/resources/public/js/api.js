@@ -40,7 +40,7 @@ function parseJson(text) {
   });
 }
 
-function stringifyJson(value) {
+export function stringifyJson(value) {
   if (value instanceof JsonNumber) return value.token;
   if (Array.isArray(value)) return '[' + value.map(stringifyJson).join(',') + ']';
   if (value !== null && typeof value === 'object') {
@@ -80,6 +80,7 @@ async function request(path, { signal, body, method } = {}) {
 }
 
 export const api = {
+  meta: () => request('/meta'),
   users: () => request('/users'),
   objects: (signal) => request('/objects', { signal }),
   classes: (signal) => request('/classes', { signal }),
@@ -89,6 +90,8 @@ export const api = {
   process: (id, signal) => request('/objects/' + encodeURIComponent(id) + '/process', { signal }),
   access: (id, userId, signal) => request('/objects/' + encodeURIComponent(id) + '/access?userId=' + encodeURIComponent(userId), { signal }),
   history: (id, signal) => request('/objects/' + encodeURIComponent(id) + '/history', { signal }),
+  journal: (id, signal) => request('/journal' + (id ? '?objectId=' + encodeURIComponent(id) : ''), { signal }),
+  command: (body) => request('/commands', { body }),
   performAction: (id, userId, actionId) => request('/objects/' + encodeURIComponent(id) + '/actions', { body: { userId, actionId } }),
   updateParameter: (id, userId, parameterId, value) => request('/objects/' + encodeURIComponent(id) + '/parameters/' + encodeURIComponent(parameterId),
     { method: 'PATCH', body: { userId, value } })

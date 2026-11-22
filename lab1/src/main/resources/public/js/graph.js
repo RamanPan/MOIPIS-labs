@@ -70,6 +70,10 @@ export class ProcessGraph {
     const version = ++this.version;
     const visited = new Set();
     for (const entry of history) {
+      if (entry.outcome === 'SUCCESS') {
+        if (entry.before) visited.add(entry.before);
+        if (entry.after) visited.add(entry.after);
+      }
       if (entry.operation === 'CREATE' && entry.details?.initialState) visited.add(entry.details.initialState);
       if (entry.operation === 'ACTION') {
         if (entry.details?.oldState) visited.add(entry.details.oldState);

@@ -25,31 +25,73 @@ public record CoordinationScenario(StoreData catalog, List<ConfiguredObject> obj
     }
 
     public static CoordinationScenario demo() throws IOException {
-        try (InputStream input = CoordinationScenario.class.getResourceAsStream("/seed/coordination-3-1-2.json")) {
-            return read(Objects.requireNonNull(input, "Coordination demo configuration"));
+        return resource("/seed/coordination-3-1-2.json");
+    }
+
+    public static CoordinationScenario task311() throws IOException {
+        return resource("/seed/task-3-1-1.json");
+    }
+
+    private static CoordinationScenario resource(String name) throws IOException {
+        try (InputStream input = CoordinationScenario.class.getResourceAsStream(name)) {
+            return read(Objects.requireNonNull(input, name));
         }
     }
 
     public CoordinationSession open(Path log) throws IOException {
+        return open(new CoordinationJournal(log), false).session();
+    }
+
+    public Task311Commands openTask311(Path log) throws IOException {
+        var journal = new CoordinationJournal(log);
+        var opened = open(journal, true);
+        return new Task311Commands(catalog, opened.objects(), opened.session(), journal);
+    }
+
+    private record Opened(List<ConfiguredObject> objects, CoordinationSession session) {}
+
+    private Opened open(CoordinationJournal journal, boolean task311) throws IOException {
         CatalogService classes = new CatalogService(catalog.classes());
-        TemplateCatalogService templates = new TemplateCatalogService(classes, new CatalogSnapshot(catalog));
+        var templates = new TemplateCatalogService(classes, new CatalogSnapshot(catalog), task311).getTemplates();
+        if (task311) {
+            for (var template : templates) {
+                if (!template.eventTransitions().isEmpty()
+                        || template.transitions().stream().anyMatch(t -> !t.emit().isEmpty())
+                        || template.predicates().stream().anyMatch(p -> p.relatedProcess() != null)) {
+                    throw new IllegalArgumentException("Process coordination requires the coordination profile");
+                }
+            }
+        }
         Map<String, ConfiguredObject> indexed = new LinkedHashMap<>();
-        for (ConfiguredObject object : objects) {
+        for (ConfiguredObject source : objects) {
+            ConfiguredObject object = source;
+            var parameters = classes.getEffectiveParameters(object.classId());
+            if (task311) {
+                var values = ParameterValues.copy(source.values());
+                parameters.forEach((id, definition) -> {
+                    if (definition.defaultValue() != null) {
+                        ParameterValues.validate(id, definition.defaultValue(), parameters);
+                        if (!values.containsKey(id)) {
+                            values.put(id, definition.defaultValue());
+                        }
+                    }
+                });
+                object = new ConfiguredObject(source.id(), source.classId(), values, source.links());
+            }
+            object.values().forEach((id, value) -> ParameterValues.validate(id, value, parameters));
             if (indexed.putIfAbsent(object.id(), object) != null) {
                 throw new IllegalArgumentException("Duplicate object: " + object.id());
             }
-            var parameters = classes.getEffectiveParameters(object.classId());
-            object.values().forEach((id, value) -> ParameterValues.validate(id, value, parameters));
         }
-        for (ConfiguredObject object : objects) {
+        for (ConfiguredObject object : indexed.values()) {
             object.links().forEach((link, targets) -> {
                 if (link.isBlank() || !indexed.keySet().containsAll(targets)) {
                     throw new IllegalArgumentException("Invalid link " + link + " on " + object.id());
                 }
             });
         }
-        return new CoordinationSession(indexed, catalog.users(), classes, templates.getTemplates(),
-                new CoordinationJournal(log));
+        return new Opened(List.copyOf(indexed.values()),
+                new CoordinationSession(indexed, catalog.users(), classes, templates, journal, task311));
     }
 
     private record CatalogSnapshot(StoreData data) implements Repository {

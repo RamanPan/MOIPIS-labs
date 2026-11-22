@@ -1,12 +1,15 @@
 import { api } from './api.js';
 import { parameterValue } from './parameter-input.js';
 import { OrderDetail } from './order-detail.js';
+import { renderCommandJournal } from './command-journal.js';
 
 const $ = (id) => document.getElementById(id);
 const state = { users: [], userId: '', orders: [], drafts: new Map(), fields: new Map(), shownClass: '', parametersReady: false, submitting: false };
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
 let ordersRequest, classesRequest, parametersRequest;
 let ordersVersion = 0, parametersVersion = 0, classesVersion = 0;
+let journalRequest;
+const unstartedState = '__unstarted__';
 
 function node(tag, className, text) {
   const element = document.createElement(tag);
@@ -18,7 +21,10 @@ function option(value, title) { const item = node('option', '', title); item.val
 function selectedUser() { return state.users.find((user) => user.id === state.userId); }
 function showNotice(message) { $('notice').textContent = message; $('notice').hidden = false; }
 function errorText(error) { return error.message || 'Не удалось выполнить операцию. Попробуйте снова.'; }
-const detail = new OrderDetail({ user: selectedUser, onChanged: loadOrders });
+const detail = new OrderDetail({ user: selectedUser, users: () => state.users, onChanged: loadOrders });
+const task311 = () => state.mode === 'task-3-1-1';
+const stateKey = order => order.stateId ?? unstartedState;
+const stateTitle = order => order.stateTitle || order.stateId || 'Процесс не запущен';
 
 async function loadUsers() {
   $('users-error').hidden = true;
@@ -46,7 +52,7 @@ function renderUser() {
   $('current-roles').textContent = user?.roles?.length
     ? user.roles.map((id) => user.roleTitles?.[id] || id).join(' · ') : 'Роли не назначены';
   $('creation-user').textContent = user?.name || 'Пользователь не выбран';
-  $('new-order').disabled = !user;
+  $('new-order').disabled = task311() || !user;
   updateSubmit();
   detail.userChanged();
 }
@@ -67,10 +73,10 @@ async function loadOrders() {
     state.orders = orders;
     $('total-orders').textContent = orders.length;
     $('total-classes').textContent = new Set(orders.map((order) => order.classId)).size;
-    $('total-states').textContent = new Set(orders.map((order) => order.stateId)).size;
+    $('total-states').textContent = new Set(orders.flatMap(order => order.stateId == null ? [] : [order.stateId])).size;
     $('orders-count').textContent = orders.length;
     const previous = $('state-filter').value;
-    const states = new Map(orders.map((order) => [order.stateId, order.stateTitle || order.stateId]));
+    const states = new Map(orders.map(order => [stateKey(order), stateTitle(order)]));
     $('state-filter').replaceChildren(option('', 'Все состояния'), ...Array.from(states, ([id, title]) => option(id, title)));
     $('state-filter').value = states.has(previous) ? previous : '';
     renderOrders();
@@ -88,14 +94,15 @@ async function loadOrders() {
 function renderOrders() {
   const query = $('order-search').value.trim().toLocaleLowerCase('ru');
   const filter = $('state-filter').value;
-  const orders = state.orders.filter((order) => (!filter || order.stateId === filter)
+  const orders = state.orders.filter((order) => (!filter || stateKey(order) === filter)
     && [order.orderNumber, order.displayTitle].some((value) => (value || '').toLocaleLowerCase('ru').includes(query)));
   $('orders-grid').replaceChildren(...orders.map(orderCard));
   $('orders-grid').hidden = false;
   $('orders-empty').hidden = orders.length > 0;
   $('empty-title').textContent = state.orders.length ? 'Заказы не найдены' : 'Здесь появятся ваши заказы';
   $('empty-description').textContent = state.orders.length
-    ? 'Попробуйте изменить поисковый запрос или выбрать другое состояние.' : 'Создайте первый заказ с помощью кнопки «Новый заказ».';
+    ? 'Попробуйте изменить поисковый запрос или выбрать другое состояние.'
+    : task311() ? 'В конфигурации сеанса нет заказов.' : 'Создайте первый заказ с помощью кнопки «Новый заказ».';
   $('results-caption').textContent = 'Показано ' + orders.length + ' из ' + state.orders.length;
   $('clear-filters').hidden = !query && !filter;
 }
@@ -104,7 +111,7 @@ function orderCard(order) {
   const card = node('a', 'order-card');
   card.href = '#/orders/' + encodeURIComponent(order.id);
   const top = node('div', 'card-top');
-  top.append(node('span', 'order-number', order.orderNumber || 'Без номера'), node('span', 'status-badge', order.stateTitle || order.stateId));
+  top.append(node('span', 'order-number', order.orderNumber || 'Без номера'), node('span', 'status-badge', stateTitle(order)));
   const description = node('div');
   description.append(node('h3', 'card-title', order.displayTitle || order.id), node('p', 'card-class', order.classTitle || order.classId));
   const footer = node('div', 'card-footer');
@@ -130,7 +137,7 @@ function saveDraft() {
 }
 
 async function openCreate() {
-  if (!selectedUser()) return;
+  if (task311() || !selectedUser()) return;
   $('create-error').hidden = true;
   $('create-dialog').showModal();
   renderUser();
@@ -248,7 +255,7 @@ function submissionBusy(busy) {
 
 async function createOrder(event) {
   event.preventDefault();
-  if (state.submitting || !state.parametersReady || !selectedUser()) return;
+  if (task311() || state.submitting || !state.parametersReady || !selectedUser()) return;
   $('create-error').hidden = true;
   try {
     const parameters = parameterValues();
@@ -269,9 +276,60 @@ async function createOrder(event) {
   } finally { if (state.submitting) submissionBusy(false); }
 }
 
+async function refreshJournal() {
+  journalRequest?.abort();
+  const request = new AbortController();
+  journalRequest = request;
+  const status = $('command-journal-status'), list = $('command-journal-list');
+  status.setAttribute('role', 'status');
+  status.textContent = 'Загружаем журнал…';
+  list.setAttribute('aria-busy', 'true');
+  try {
+    const records = await api.journal(null, request.signal);
+    if (journalRequest !== request || request.signal.aborted) return;
+    renderCommandJournal(list, records, { users: state.users });
+    status.textContent = records.length ? 'Записей: ' + records.length : 'В этом сеансе ещё нет команд.';
+  } catch (error) {
+    if (error.name === 'AbortError' || journalRequest !== request) return;
+    status.setAttribute('role', 'alert');
+    status.textContent = errorText(error);
+  } finally {
+    if (journalRequest === request) list.setAttribute('aria-busy', 'false');
+  }
+}
+
+async function initialize() {
+  if (state.mode) return loadUsers();
+  $('users-error').hidden = true;
+  try {
+    const metadata = await api.meta();
+    state.mode = metadata.mode;
+    detail.task311 = task311();
+    $('new-order').hidden = task311();
+    $('open-command-journal').hidden = !task311();
+    if (task311()) {
+      $('list-title').textContent = 'Готовые заказы';
+      $('history-tab-label').textContent = 'Журнал команд';
+      $('history-title').textContent = 'Журнал команд';
+      $('history-caption').textContent = 'Успехи, отказы и ошибки по заказу в порядке выполнения.';
+    }
+    await Promise.allSettled([loadUsers(), loadOrders(), route()]);
+  } catch (error) {
+    $('users-error-text').textContent = errorText(error);
+    $('users-error').hidden = false;
+    $('orders-loading').hidden = true;
+  }
+}
+
 $('current-user').addEventListener('change', () => { state.userId = $('current-user').value; renderUser(); });
 $('new-order').addEventListener('click', openCreate);
-$('retry-users').addEventListener('click', loadUsers);
+$('retry-users').addEventListener('click', initialize);
+$('open-command-journal').addEventListener('click', () => {
+  $('command-journal-dialog').showModal();
+  refreshJournal();
+});
+$('refresh-command-journal').addEventListener('click', refreshJournal);
+$('command-journal-dialog').addEventListener('close', () => journalRequest?.abort());
 for (const id of ['refresh-orders', 'retry-orders']) $(id).addEventListener('click', loadOrders);
 $('order-search').addEventListener('input', renderOrders);
 $('state-filter').addEventListener('change', renderOrders);
@@ -282,6 +340,9 @@ $('create-form').addEventListener('submit', createOrder);
 for (const id of ['close-create', 'cancel-create']) $(id).addEventListener('click', () => { if (!state.submitting) $('create-dialog').close(); });
 $('create-dialog').addEventListener('cancel', (event) => { if (state.submitting) event.preventDefault(); });
 $('create-dialog').addEventListener('close', () => { saveDraft(); classesRequest?.abort(); parametersRequest?.abort(); ++classesVersion; ++parametersVersion; });
-window.addEventListener('hashchange', () => { route(); if (!location.hash.match(/^#\/orders\//)) loadOrders(); });
-route();
-Promise.allSettled([loadUsers(), loadOrders()]);
+window.addEventListener('hashchange', () => {
+  if (!state.mode) return;
+  route();
+  if (!location.hash.match(/^#\/orders\//)) loadOrders();
+});
+initialize();

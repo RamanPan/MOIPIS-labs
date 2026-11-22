@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { parameterValue } from './parameter-input.js';
 import { ProcessGraph } from './graph.js';
 import { HistoryTimeline } from './history.js';
+import { renderCommandJournal } from './command-journal.js';
 
 const $ = id => document.getElementById(id);
 const types = { string: 'Текст', integer: 'Целое число', decimal: 'Число' };
@@ -21,12 +22,15 @@ function element(tag, text, className = '') {
   return node;
 }
 function valueText(value) { return value === undefined ? 'Не задано' : value === null ? 'Пустое значение' : value === '' ? 'Пустая строка' : String(value); }
-function errorText(error) { return (messages[error.code] || error.message || 'Не удалось выполнить запрос.')
-  + (error.code ? ' ' + (messages[error.code] && error.message ? error.message + ' ' : '') + '(' + error.code + ')' : ''); }
+function errorText(error) {
+  return (error.message || messages[error.code] || 'Не удалось выполнить запрос.')
+    + (error.code ? ' (' + error.code + ')' : '');
+}
 
 export class OrderDetail {
-  constructor({ user, onChanged }) {
-    this.user = user; this.onChanged = onChanged;
+  constructor({ user, users, onChanged }) {
+    this.user = user; this.users = users; this.onChanged = onChanged;
+    this.task311 = false;
     this.id = ''; this.userId = ''; this.version = 0;
     this.object = null; this.process = null; this.access = null;
     this.loading = false; this.pending = null; this.edit = null;
@@ -149,7 +153,8 @@ export class OrderDetail {
       let results;
       for (let attempt = 0; attempt < 2; attempt++) {
         results = await Promise.allSettled([api.object(id, signal), api.process(id, signal),
-          userId ? api.access(id, userId, signal) : Promise.resolve(null), api.history(id, signal)]);
+          userId ? api.access(id, userId, signal) : Promise.resolve(null),
+          this.task311 ? api.journal(id, signal) : api.history(id, signal)]);
         if (version !== this.version) return;
         if (results[0].status === 'rejected') throw results[0].reason;
         const object = results[0].value;
@@ -169,7 +174,8 @@ export class OrderDetail {
       $('detail-content').hidden = false;
       if (this.process && this.tab === 'overview') this.graph.render(this.process, history);
       else if (this.process) this.graph.suspend();
-      else this.graph.unavailable('Не удалось загрузить схему процесса. Обновите карточку.');
+      else this.graph.unavailable(this.task311 && results[1].status === 'fulfilled'
+        ? 'У класса заказа нет собственного шаблона.' : 'Не удалось загрузить схему процесса. Обновите карточку.');
       this.renderActions();
       this.renderParameters();
       this.renderHistory(history, results[3].status === 'rejected');
@@ -199,22 +205,28 @@ export class OrderDetail {
     $('detail-title').textContent = object.parameters.product_name || object.parameters.order_number || object.classTitle || object.id;
     $('detail-number').textContent = object.parameters.order_number || 'Заказ без номера';
     $('detail-class').textContent = object.classTitle || object.classId;
-    $('detail-state').textContent = object.stateTitle || object.stateId;
+    $('detail-state').textContent = object.stateTitle || object.stateId || 'Процесс не запущен';
     $('detail-id').textContent = object.id;
-    $('detail-template').textContent = this.process?.templateTitle || object.templateId;
-    $('detail-template-id').textContent = this.process?.templateId || object.templateId;
+    $('detail-template').textContent = this.process?.templateTitle || object.templateId || 'Шаблон не назначен';
+    $('detail-template-id').textContent = this.process?.templateId || object.templateId || '';
     document.title = $('detail-title').textContent + ' · Workflow Manager';
   }
 
   canEdit(id) {
-    return Boolean(this.access?.canEditParameters && this.access.editableParameterIds?.includes(id));
+    return !this.task311 && Boolean(this.access?.canEditParameters && this.access.editableParameterIds?.includes(id));
   }
 
   renderParameters() {
     $('detail-parameters').replaceChildren(...this.object.parameterDefinitions.map(definition => {
       const row = element('div', '', 'parameter-row');
+      row.dataset.parameterId = definition.id;
       const label = element('dt', definition.title || definition.id);
       label.append(element('span', types[definition.type] || definition.type, 'parameter-type'));
+      if (this.task311 && (definition.min != null || definition.max != null)) {
+        const bounds = [definition.min == null ? '' : 'от ' + definition.min,
+          definition.max == null ? '' : 'до ' + definition.max].filter(Boolean).join(' ');
+        label.append(element('span', 'Диапазон при переходе ' + bounds, 'parameter-bounds'));
+      }
       const value = this.object.parameters[definition.id];
       const content = element('dd', '', 'parameter-content');
       content.append(element('span', valueText(value), value === null || value === undefined ? 'unset-value' : 'parameter-value'));
@@ -232,6 +244,10 @@ export class OrderDetail {
   }
 
   renderActions() {
+    if (this.task311) {
+      this.renderTaskActions();
+      return;
+    }
     const actions = new Map((this.access?.availableActions || []).map(action => [action.id, action]));
     $('actions-list').replaceChildren(...Array.from(actions.values(), action => {
       const button = element('button', action.title || action.id, 'button button-primary process-action');
@@ -245,7 +261,65 @@ export class OrderDetail {
     $('access-caption').textContent = this.access ? this.access.canEditParameters ? 'Редактирование разрешено' : 'Параметры только для чтения' : 'Доступ не проверен';
   }
 
+  renderTaskActions() {
+    const list = $('actions-list');
+    list.replaceChildren();
+    $('access-caption').textContent = this.access ? 'Параметры только для чтения' : 'Доступ не проверен';
+    if (!this.access) {
+      list.append(element('p', 'Доступные действия не получены.', 'panel-caption'));
+      return;
+    }
+    if (this.object.stateId == null) {
+      if (this.access.canStart) {
+        const button = element('button', 'Запустить процесс', 'button button-primary process-action');
+        button.id = 'start-process';
+        button.type = 'button';
+        button.addEventListener('click', () => this.run(() =>
+          api.command({ type: 'start', objectId: this.id, userId: this.user().id }),
+        'Процесс запущен.', { actionId: 'start', loadingMessage: 'Запускаем процесс…' }));
+        list.append(button);
+      } else {
+        list.append(element('p', this.access.startBlockedReason || 'Запуск недоступен выбранному пользователю.', 'panel-caption'));
+      }
+      return;
+    }
+    const actions = this.access.stateActions ?? this.access.availableActions;
+    for (const action of actions) {
+      const title = action.title || action.id;
+      const denied = action.allowedByRole === false;
+      const button = element('button', denied ? 'Проверить отказ' : title,
+        'button process-action ' + (denied ? 'button-quiet' : 'button-primary'));
+      button.type = 'button'; button.dataset.actionId = action.id;
+      button.addEventListener('click', () => this.run(() =>
+        api.command({ type: 'action', objectId: this.id, userId: this.user().id, actionId: action.id }),
+      'Действие выполнено.', { actionId: action.id, loadingMessage: 'Отправляем команду «' + title + '»…' }));
+      if (denied) {
+        button.setAttribute('aria-label', 'Проверить отказ для действия «' + title + '»');
+        const row = element('div', '', 'role-refusal');
+        row.append(element('span', title + ' · недостаточно прав', 'panel-caption'), button);
+        list.append(row);
+      } else list.append(button);
+    }
+    if (actions.length === 0) {
+      const terminal = this.process?.states.some(state => state.id === this.object.stateId && state.final);
+      list.append(element('p', terminal ? 'Процесс завершён.' : 'В этом состоянии нет доступных действий.', 'panel-caption'));
+    }
+  }
+
   renderHistory(history, failed) {
+    if (this.task311) {
+      const status = $('history-message');
+      status.textContent = failed ? 'Не удалось обновить журнал. Повторите загрузку карточки.' : 'По этому заказу ещё нет команд.';
+      status.classList.toggle('history-error', failed);
+      status.setAttribute('role', failed ? 'alert' : 'status');
+      status.hidden = !failed && history.length > 0;
+      if (!failed) {
+        renderCommandJournal($('history-list'), history, { process: this.process, users: this.users() });
+        $('history-count').textContent = history.length;
+        $('history-tab-count').textContent = history.length;
+      }
+      return;
+    }
     this.timeline.render(history, { process: this.process, parameters: this.object.parameterDefinitions, failed });
   }
 

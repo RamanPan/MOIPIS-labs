@@ -1,0 +1,55 @@
+@startuml
+!pragma layout smetana
+hide empty members
+skinparam shadowing false
+skinparam defaultFontSize 14
+top to bottom direction
+
+class CoordinationScenario {
+  catalog : StoreData
+  objects : List<ConfiguredObject>
+  + open(log) : CoordinationSession
+}
+class Task311Commands {
+  + submit(rawCommand) : Entry
+}
+class CoordinationSession {
+  objects : Map<ID, ConfiguredObject>
+  templates : Map<ClassId, ProcessTemplate>
+  processes : Map<ID, ProcessSnapshot>
+}
+class ConfiguredObject {
+  id : String
+  classId : String
+  values : Map<String, JsonNode>
+}
+class ProcessTemplate {
+  classId : String
+  states : List<StateDefinition>
+  transitions : List<TransitionDefinition>
+}
+class ProcessSnapshot {
+  stateId : String
+  lastActionId : String
+}
+class CoordinationJournal {
+  path : Path
+  + append(entry)
+}
+class DefaultConditionEvaluator {
+  + evaluatePredicate(predicate, context) : boolean
+}
+class CatalogService {
+  + getEffectiveParameters(classId) : Map
+}
+
+CoordinationScenario ..> CatalogService : разрешает параметры
+CoordinationScenario ..> CoordinationSession : создаёт
+Task311Commands --> CoordinationSession : передаёт команду
+CoordinationSession --> ConfiguredObject : готовые объекты
+CoordinationSession --> ProcessTemplate : шаблоны по классам
+CoordinationSession --> ProcessSnapshot : по ID объекта
+CoordinationSession --> CoordinationJournal : пишет исход
+CoordinationSession --> DefaultConditionEvaluator : вычисляет ДНФ
+DefaultConditionEvaluator --> CatalogService : использует определения
+@enduml
