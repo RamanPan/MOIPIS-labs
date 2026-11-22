@@ -112,6 +112,12 @@
             </properties>
         </profile>
         <profile>
+            <id>web-3-1-2</id>
+            <properties>
+                <application.mainClass>ru.moipis.workflow.web.CoordinationWebApplication</application.mainClass>
+            </properties>
+        </profile>
+        <profile>
             <id>web</id>
             <properties>
                 <application.mainClass>ru.moipis.workflow.web.WebApplication</application.mainClass>

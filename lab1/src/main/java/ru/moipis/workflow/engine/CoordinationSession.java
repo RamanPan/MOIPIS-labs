@@ -34,6 +34,7 @@ import static ru.moipis.workflow.engine.CoordinationJournal.Outcome.*;
 public final class CoordinationSession {
     public record ProcessSnapshot(String stateId, String lastActionId) {}
     public record Result(Entry command, List<Entry> deliveries) {}
+    public record Snapshot(Map<String, ProcessSnapshot> processes, List<Entry> journal) {}
 
     private record ProcessMessage(String id, String parentId, String event, String source, String recipient) {}
     private record Step(String id, Kind kind, String objectId, String userId, String action,
@@ -75,6 +76,14 @@ public final class CoordinationSession {
 
     synchronized Map<String, ProcessSnapshot> processSnapshots() {
         return Map.copyOf(processes);
+    }
+
+    public synchronized Snapshot snapshot() throws IOException {
+        return new Snapshot(processSnapshots(), journal.entries());
+    }
+
+    public synchronized String journalText() throws IOException {
+        return journal.text();
     }
 
     public synchronized Result start(String userId, String objectId) throws IOException {

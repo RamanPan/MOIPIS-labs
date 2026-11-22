@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Координация процессов · МОИПИС 3-1-2</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/coordination.css">
+  <script type="module" src="/js/coordination.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+  <main id="main" class="workspace coordination" tabindex="-1">
+    <header class="page-heading">
+      <div>
+        <p class="eyebrow">МОИПИС · 3-1-2</p>
+        <h1>Координация процессов</h1>
+        <p class="page-description">Подготовка заказа и проверка заказчика</p>
+      </div>
+      <button id="refresh" class="button" type="button">Обновить данные</button>
+    </header>
+    <noscript><p class="notice notice-error">Для отправки команд включите JavaScript.</p></noscript>
+    <p id="result" class="notice" role="status" aria-live="polite">Загрузка сеанса…</p>
+    <section id="processes" class="process-grid" aria-label="Процессы"></section>
+
+    <section class="detail-panel coordination-journal" aria-labelledby="journal-title">
+      <div class="panel-heading">
+        <div class="section-title">
+          <h2 id="journal-title">Журнал сеанса</h2>
+          <span id="entry-count" class="count-badge">0</span>
+        </div>
+        <a class="button button-small" href="/api/coordination/journal/download" download>Скачать JSONL</a>
+      </div>
+      <p id="empty-journal">Здесь появятся команды и события.</p>
+      <div id="journal-scroll" class="journal-scroll" tabindex="0" aria-label="Записи журнала" hidden>
+        <table>
+          <thead>
+            <tr><th scope="col">Операция</th><th scope="col">Объект</th><th scope="col">Состояние</th><th scope="col">Результат</th><th scope="col">Связь с командой</th></tr>
+          </thead>
+          <tbody id="journal"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

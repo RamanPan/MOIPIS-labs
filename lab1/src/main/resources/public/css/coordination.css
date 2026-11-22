@@ -1,0 +1,174 @@
+.coordination {
+  max-width: 1280px;
+  padding-bottom: 40px;
+}
+
+.process-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.process-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.process-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.process-card header .status-badge {
+  flex-shrink: 0;
+  background: #edf8f1;
+  color: #246b48;
+}
+
+.process-card .status-badge.pending {
+  background: #eef0f5;
+  color: #555e75;
+}
+
+.process-card .object-label,
+.process-card .process-links,
+.process-card .last-action,
+#empty-journal {
+  color: #5a6277;
+}
+
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stages li {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.stages li[aria-current="step"] {
+  color: #442aa3;
+  background: var(--soft);
+  border-color: #cfc0ff;
+  font-weight: 700;
+}
+
+.process-controls {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.process-controls p {
+  margin-bottom: 8px;
+  color: #5a6277;
+  font-size: 13px;
+}
+
+.process-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coordination .notice {
+  display: block;
+}
+
+.coordination .notice[data-kind="warning"] {
+  background: #fff5e3;
+  color: #734806;
+  border-color: #f0d69a;
+}
+
+.journal-scroll {
+  max-height: 430px;
+  overflow: auto;
+}
+
+.journal-scroll table {
+  width: 100%;
+  min-width: 730px;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.journal-scroll th {
+  position: sticky;
+  top: 0;
+  background: #f3f4f9;
+  color: #4c546b;
+}
+
+.journal-scroll th,
+.journal-scroll td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.journal-scroll tr[data-kind="EVENT"] {
+  background: #f8f5ff;
+}
+
+.journal-scroll tr[data-related="true"],
+.journal-scroll tr:target {
+  background: #ece5ff;
+}
+
+.journal-scroll .row-secondary {
+  display: block;
+  font-size: 12px;
+  color: #5a6277;
+  margin-top: 2px;
+}
+
+.journal-scroll td[data-outcome="SUCCESS"] strong {
+  color: #246b48;
+}
+
+.journal-scroll td[data-outcome="REJECTED"] strong,
+.journal-scroll td[data-outcome="ERROR"] strong {
+  color: var(--danger);
+}
+
+.journal-scroll a {
+  color: #5038ac;
+}
+
+@media (max-width: 840px) {
+  .process-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .coordination {
+    padding-inline: 14px;
+  }
+
+  .coordination .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .process-card header,
+  .coordination-journal .panel-heading {
+    flex-wrap: wrap;
+  }
+}
