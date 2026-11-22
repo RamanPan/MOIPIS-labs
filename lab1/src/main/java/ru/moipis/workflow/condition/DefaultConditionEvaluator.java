@@ -20,9 +20,15 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
     private static final Set<String> OPERATORS = Set.of("filled", "=", "!=", "<", "<=", ">", ">=", "in_range");
     private static final Set<String> STRING_OPERATORS = Set.of("filled", "=", "!=");
     private final CatalogService classes;
+    private final boolean allowAbsentParameters;
 
     public DefaultConditionEvaluator(CatalogService classes) {
+        this(classes, false);
+    }
+
+    public DefaultConditionEvaluator(CatalogService classes, boolean allowAbsentParameters) {
         this.classes = required(classes, "Class catalog");
+        this.allowAbsentParameters = allowAbsentParameters;
     }
 
     @Override
@@ -80,6 +86,10 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
         }
         ParameterDefinition definition = definitions.get(predicate.parameterId());
         if (definition == null) {
+            if (allowAbsentParameters && predicate.parameterId() != null && !predicate.parameterId().isBlank()
+                    && predicate.operator() != null && OPERATORS.contains(predicate.operator())) {
+                return false;
+            }
             throw new IllegalArgumentException("Unknown parameter in predicate: " + predicate.parameterId());
         }
         String operator = predicate.operator();

@@ -8,10 +8,10 @@ import java.util.Set;
 
 import static ru.moipis.workflow.engine.exception.WorkflowError.*;
 
-final class WorkflowAccessPolicy {
+public final class WorkflowAccessPolicy {
     private WorkflowAccessPolicy() { }
 
-    static boolean hasRole(UserDefinition user, Set<String> roles) {
+    public static boolean hasRole(UserDefinition user, Set<String> roles) {
         return user.roles() != null && roles != null && user.roles().stream().anyMatch(roles::contains);
     }
 

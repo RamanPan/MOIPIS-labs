@@ -1,0 +1,20 @@
+@startuml
+skinparam shadowing false
+skinparam defaultFontSize 14
+actor Пользователь as User
+participant "Браузер\nили консоль" as UI
+participant Task311Commands as Commands
+participant CoordinationSession as Session
+database "JSONL\nсеанса" as Journal
+
+User -> UI : Запустить или выполнить действие
+UI -> Commands : Исходная команда
+Commands -> Commands : Разобрать JSON
+Commands -> Session : Передать команду или ошибку разбора
+Session -> Session : Выбрать шаблон, проверить\nсостояние, роль и условия
+Session -> Journal : Записать исход и состояния
+Session -> Session : При успехе применить новое состояние
+Session --> Commands : Запись результата
+Commands --> UI : Результат и причина отказа
+UI --> User : Показать исход
+@enduml

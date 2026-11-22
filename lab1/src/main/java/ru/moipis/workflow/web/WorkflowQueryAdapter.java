@@ -40,7 +40,10 @@ public final class WorkflowQueryAdapter {
     }
 
     public List<UserDto> users() {
-        StoreData store = load();
+        return userDtos(load());
+    }
+
+    static List<UserDto> userDtos(StoreData store) {
         Map<String, String> titles = new HashMap<>();
         store.roles().forEach(role -> titles.put(role.id(), role.title()));
         return store.users().stream().map(user -> {
@@ -155,12 +158,12 @@ public final class WorkflowQueryAdapter {
                 .orElseThrow(() -> new WorkflowException(TEMPLATE_ERROR, "Unknown saved state: " + stateId));
     }
 
-    private static String actionTitle(ProcessTemplate template, String actionId) {
+    static String actionTitle(ProcessTemplate template, String actionId) {
         return template.actions().stream().filter(a -> a.id().equals(actionId)).findFirst()
                 .map(a -> a.title() == null ? actionId : a.title()).orElse(actionId);
     }
 
-    private static String text(JsonNode value) {
+    static String text(JsonNode value) {
         return value == null || value.isNull() || !value.isTextual() || value.textValue().isBlank() ? null : value.textValue();
     }
 }

@@ -1,5 +1,6 @@
 package ru.moipis.workflow.engine;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import ru.moipis.workflow.catalog.CatalogService;
 import ru.moipis.workflow.catalog.model.UserDefinition;
 import ru.moipis.workflow.condition.DefaultConditionEvaluator;
@@ -35,8 +36,10 @@ public final class CoordinationSession {
     public record Result(Entry command, List<Entry> deliveries) {}
 
     private record ProcessMessage(String id, String parentId, String event, String source, String recipient) {}
-    private record Step(String id, Kind kind, String objectId, String userId, String action, ProcessMessage message) {}
+    private record Step(String id, Kind kind, String objectId, String userId, String action,
+                        ProcessMessage message, JsonNode command) {}
     private record Transition(String target, List<EventEmission> emit) {}
+    private record ConditionResult(boolean matches, List<String> failedPredicates) {}
 
     @FunctionalInterface
     private interface Aggregation {
@@ -53,26 +56,42 @@ public final class CoordinationSession {
     private final Queue<ProcessMessage> queue = new ArrayDeque<>();
     private final DefaultConditionEvaluator evaluator;
     private final CoordinationJournal journal;
+    private final CatalogService classes;
 
     CoordinationSession(Map<String, ConfiguredObject> objects, List<UserDefinition> users,
-                        CatalogService classes, List<ProcessTemplate> templates, CoordinationJournal journal) {
+                        CatalogService classes, List<ProcessTemplate> templates, CoordinationJournal journal,
+                        boolean allowAbsentParameters) {
         this.objects = Map.copyOf(objects);
         this.users = index(users, UserDefinition::id);
         this.templates = index(templates, ProcessTemplate::classId);
-        this.evaluator = new DefaultConditionEvaluator(classes);
+        this.evaluator = new DefaultConditionEvaluator(classes, allowAbsentParameters);
         this.journal = journal;
+        this.classes = classes;
     }
 
-    public Optional<ProcessSnapshot> findProcess(String objectId) {
+    public synchronized Optional<ProcessSnapshot> findProcess(String objectId) {
         return Optional.ofNullable(processes.get(objectId));
     }
 
-    public Result start(String userId, String objectId) throws IOException {
-        return execute(new Step(id(), START, objectId, userId, null, null));
+    synchronized Map<String, ProcessSnapshot> processSnapshots() {
+        return Map.copyOf(processes);
     }
 
-    public Result action(String userId, String objectId, String actionId) throws IOException {
-        return execute(new Step(id(), ACTION, objectId, userId, actionId, null));
+    public synchronized Result start(String userId, String objectId) throws IOException {
+        return execute(new Step(id(), START, objectId, userId, null, null, null));
+    }
+
+    public synchronized Result action(String userId, String objectId, String actionId) throws IOException {
+        return execute(new Step(id(), ACTION, objectId, userId, actionId, null, null));
+    }
+
+    synchronized Entry submit(Kind kind, String userId, String objectId, String actionId, JsonNode command) throws IOException {
+        var step = new Step(id(), kind, objectId, userId, actionId, null, command);
+        if (kind == null || userId == null || objectId == null || kind == ACTION && actionId == null) {
+            var before = processes.get(objectId);
+            return record(step, before, before, ERROR, "INVALID_COMMAND");
+        }
+        return execute(step).command();
     }
 
     private Result execute(Step step) throws IOException {
@@ -80,7 +99,7 @@ public final class CoordinationSession {
         var deliveries = new ArrayList<Entry>();
         ProcessMessage message;
         while ((message = queue.poll()) != null) {
-            deliveries.add(process(new Step(message.id(), EVENT, message.recipient(), null, null, message)));
+            deliveries.add(process(new Step(message.id(), EVENT, message.recipient(), null, null, message, null)));
         }
         return new Result(command, List.copyOf(deliveries));
     }
@@ -113,7 +132,7 @@ public final class CoordinationSession {
                         step.kind() == ACTION ? step.action() : before.lastActionId());
             }
         } catch (StepFailure failure) {
-            return record(step, before, before, failure.outcome, failure.getMessage());
+            return record(step, before, before, failure.outcome, failure.getMessage(), failure.explanation);
         } catch (WorkflowException failure) {
             return record(step, before, before, REJECTED, failure.code().name());
         } catch (IllegalArgumentException failure) {
@@ -131,7 +150,20 @@ public final class CoordinationSession {
         var candidates = template.transitions().stream()
                 .filter(t -> t.from().equals(state.id()) && t.action().equals(step.action())).toList();
         require(!candidates.isEmpty(), "INVALID_ACTION");
-        var transition = exactlyOne(candidates.stream().filter(t -> matches(t.condition(), object, template))
+        var rejectedConditions = new ArrayList<ConditionResult>();
+        var matching = new ArrayList<ru.moipis.workflow.template.model.TransitionDefinition>();
+        for (var candidate : candidates) {
+            var result = evaluate(candidate.condition(), object, template);
+            if (result.matches()) matching.add(candidate);
+            else rejectedConditions.add(result);
+        }
+        if (matching.isEmpty() && !rejectedConditions.isEmpty()) {
+            String explanation = rejectedConditions.stream()
+                    .map(result -> String.join(". ", result.failedPredicates()))
+                    .collect(Collectors.joining(". Другой переход. "));
+            throw new StepFailure(REJECTED, "CONDITION_NOT_MET", explanation);
+        }
+        var transition = exactlyOne(matching.stream()
                 .toList(), "CONDITION_NOT_MET", REJECTED);
         return new Transition(transition.to(), transition.emit());
     }
@@ -148,28 +180,58 @@ public final class CoordinationSession {
     }
 
     private boolean matches(DnfCondition condition, ConfiguredObject object, ProcessTemplate template) {
+        return evaluate(condition, object, template).matches();
+    }
+
+    private ConditionResult evaluate(DnfCondition condition, ConfiguredObject object, ProcessTemplate template) {
         if (condition == null) {
-            return true;
+            return new ConditionResult(true, List.of());
         }
         var predicates = index(template.predicates(), PredicateDefinition::id);
         var context = new ConditionContext(object.classId(), object.values());
-        return DefaultConditionEvaluator.evaluateDnf(condition, id -> {
-            PredicateDefinition predicate = predicates.get(id);
-            var related = predicate.relatedProcess();
-            if (related == null) {
-                return evaluator.evaluatePredicate(predicate, context);
+        var failed = new ArrayList<String>();
+        for (int groupIndex = 0; groupIndex < condition.groups().size(); groupIndex++) {
+            var group = condition.groups().get(groupIndex);
+            var groupFailures = new ArrayList<String>();
+            for (var literal : group) {
+                var predicate = predicates.get(literal.predicateId());
+                boolean value = predicate.relatedProcess() == null
+                        ? evaluator.evaluatePredicate(predicate, context)
+                        : relatedMatches(predicate, object);
+                if (literal.negated()) value = !value;
+                if (!value) groupFailures.add(describe(predicate, object, literal.negated()));
             }
-            List<String> linked = object.linkedObjects(related.link());
-            String expected = predicate.value().textValue();
-            return !linked.isEmpty() && AGGREGATIONS.get(related.aggregate()).matches(linked, target -> {
-                ProcessSnapshot process = processes.get(target);
-                if (process == null) {
-                    return false;
-                }
-                String actual = "state".equals(related.field()) ? process.stateId() : process.lastActionId();
-                return actual != null && (predicate.operator().equals("=") == actual.equals(expected));
-            });
+            if (groupFailures.isEmpty()) return new ConditionResult(true, List.of());
+            failed.add("Вариант " + (groupIndex + 1) + ": " + String.join(", ", groupFailures));
+        }
+        return new ConditionResult(false, failed);
+    }
+
+    private boolean relatedMatches(PredicateDefinition predicate, ConfiguredObject object) {
+        var related = predicate.relatedProcess();
+        List<String> linked = object.linkedObjects(related.link());
+        String expected = predicate.value().textValue();
+        return !linked.isEmpty() && AGGREGATIONS.get(related.aggregate()).matches(linked, target -> {
+            ProcessSnapshot process = processes.get(target);
+            if (process == null) return false;
+            String actual = "state".equals(related.field()) ? process.stateId() : process.lastActionId();
+            return actual != null && (predicate.operator().equals("=") == actual.equals(expected));
         });
+    }
+
+    private String describe(PredicateDefinition predicate, ConfiguredObject object, boolean negated) {
+        String expectation = negated ? "должно быть ложным" : "должно быть истинным";
+        if (predicate.relatedProcess() != null) return predicate.title() + " — " + expectation;
+        if (predicate.classId() != null) return predicate.title() + " (класс " + predicate.classId() + ") — " + expectation;
+        var definition = classes.getEffectiveParameters(object.classId()).get(predicate.parameterId());
+        var actual = object.values().get(predicate.parameterId());
+        String value = actual == null || actual.isNull() ? "не задано" : actual.asText(actual.toString());
+        String title = definition == null ? predicate.parameterId() : definition.title();
+        String rule = predicate.operator().equals("in_range") && definition != null
+                ? "диапазон " + (definition.min() == null ? "без нижней границы" : "от " + definition.min())
+                    + " до " + (definition.max() == null ? "без верхней границы" : definition.max())
+                : predicate.title();
+        return title + " = " + value + ". Условие «" + rule + "» " + expectation;
     }
 
     private List<ProcessMessage> outgoing(Step step, ConfiguredObject object, List<EventEmission> emissions) {
@@ -192,11 +254,17 @@ public final class CoordinationSession {
 
     private Entry record(Step step, ProcessSnapshot before, ProcessSnapshot after, Outcome outcome, String reason)
             throws IOException {
+        return record(step, before, after, outcome, reason, null);
+    }
+
+    private Entry record(Step step, ProcessSnapshot before, ProcessSnapshot after, Outcome outcome, String reason,
+                         String explanation) throws IOException {
         var message = step.message();
         var entry = new Entry(step.id(), Instant.now().toString(), step.kind(), step.objectId(), step.userId(),
                 step.action(), message == null ? null : message.event(), message == null ? null : message.source(),
                 message == null ? null : message.recipient(), message == null ? null : message.parentId(),
-                before == null ? null : before.stateId(), after == null ? null : after.stateId(), outcome, reason);
+                before == null ? null : before.stateId(), after == null ? null : after.stateId(), outcome, reason,
+                step.command(), explanation);
         journal.append(entry);
         return entry;
     }
@@ -227,9 +295,15 @@ public final class CoordinationSession {
 
     private static final class StepFailure extends RuntimeException {
         private final Outcome outcome;
+        private final String explanation;
 
         private StepFailure(Outcome outcome, String reason) {
+            this(outcome, reason, null);
+        }
+
+        private StepFailure(Outcome outcome, String reason, String explanation) {
             super(reason);
+            this.explanation = explanation;
             this.outcome = outcome;
         }
     }

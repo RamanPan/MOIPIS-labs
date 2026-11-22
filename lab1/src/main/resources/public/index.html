@@ -51,7 +51,13 @@
       </div>
 
       <section class="orders-panel" aria-labelledby="list-title">
-        <div class="panel-heading"><div class="section-title"><h2 id="list-title">Все заказы</h2><span id="orders-count" class="count-badge">—</span></div><button id="refresh-orders" class="button button-quiet" type="button"><span aria-hidden="true">↻</span> Обновить</button></div>
+        <div class="panel-heading">
+          <div class="section-title"><h2 id="list-title">Все заказы</h2><span id="orders-count" class="count-badge">—</span></div>
+          <div class="panel-actions">
+            <button id="open-command-journal" class="button button-quiet" type="button" hidden>Журнал сеанса</button>
+            <button id="refresh-orders" class="button button-quiet" type="button"><span aria-hidden="true">↻</span> Обновить</button>
+          </div>
+        </div>
         <div class="toolbar">
           <div class="search-control"><span aria-hidden="true">⌕</span><label for="order-search" class="sr-only">Поиск по номеру или наименованию</label><input id="order-search" type="search" placeholder="Найти заказ по номеру или наименованию" autocomplete="off"></div>
           <div class="filter-control"><label for="state-filter">Состояние</label><select id="state-filter"><option value="">Все состояния</option></select></div>
@@ -76,7 +82,7 @@
         <div id="detail-warning" class="notice notice-error" role="alert" hidden></div>
         <div class="order-tabs" role="tablist" aria-label="Разделы карточки заказа">
           <button id="tab-overview" type="button" role="tab" aria-selected="true" aria-controls="order-overview" tabindex="0">Обзор заказа</button>
-          <button id="tab-history" type="button" role="tab" aria-selected="false" aria-controls="order-history" tabindex="-1">История изменений <span id="history-tab-count" class="count-badge">—</span></button>
+          <button id="tab-history" type="button" role="tab" aria-selected="false" aria-controls="order-history" tabindex="-1"><span id="history-tab-label">История изменений</span> <span id="history-tab-count" class="count-badge">—</span></button>
         </div>
         <div id="order-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
         <section class="detail-panel graph-panel" aria-labelledby="graph-title">
@@ -90,11 +96,24 @@
         <section class="detail-panel actions-panel" aria-labelledby="actions-title"><div class="panel-heading"><h2 id="actions-title">Доступные действия</h2><span id="access-caption" class="panel-caption"></span></div><div id="actions-list" class="actions-list" aria-live="polite"></div><p class="panel-caption">Условия перехода проверяются сервером при выполнении действия.</p></section>
         <section class="detail-panel" aria-labelledby="parameters-title"><div class="panel-heading"><h2 id="parameters-title">Параметры заказа</h2><span id="detail-id" class="object-id"></span></div><dl id="detail-parameters" class="parameter-list"></dl></section>
         </div>
-        <section id="order-history" class="detail-panel history-panel" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden><div class="panel-heading"><div><h2 id="history-title">История изменений</h2><p class="panel-caption">Принятые операции в хронологическом порядке</p></div><span id="history-count" class="count-badge">—</span></div><p id="history-timezone" class="history-timezone"></p><p id="history-message" class="panel-caption" role="status" aria-live="polite" hidden></p><ol id="history-list" class="history-list" aria-label="Журнал операций" aria-busy="false"></ol></section>
+        <section id="order-history" class="detail-panel history-panel" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden><div class="panel-heading"><div><h2 id="history-title">История изменений</h2><p id="history-caption" class="panel-caption">Принятые операции в хронологическом порядке</p></div><span id="history-count" class="count-badge">—</span></div><p id="history-timezone" class="history-timezone"></p><p id="history-message" class="panel-caption" role="status" aria-live="polite" hidden></p><ol id="history-list" class="history-list" aria-label="Журнал операций" aria-busy="false"></ol></section>
       </article>
     </section>
     <footer class="page-footer"><span>Workflow Manager</span><span>Управление заказами на поставку</span></footer>
   </main>
+
+  <dialog id="command-journal-dialog" aria-labelledby="command-journal-title">
+    <div class="dialog-heading">
+      <h2 id="command-journal-title">Журнал сеанса</h2>
+      <form method="dialog"><button class="icon-button" type="submit" aria-label="Закрыть журнал">×</button></form>
+    </div>
+    <p id="command-journal-status" class="dialog-description" role="status" aria-live="polite"></p>
+    <ol id="command-journal-list" class="history-list" aria-label="Команды сеанса"></ol>
+    <div class="dialog-footer">
+      <button id="refresh-command-journal" class="button button-quiet" type="button">Обновить</button>
+      <a id="download-command-journal" class="button button-primary" href="/api/journal/download" download="journal.jsonl">Скачать JSONL</a>
+    </div>
+  </dialog>
 
   <dialog id="create-dialog" aria-labelledby="create-title" aria-describedby="create-description">
     <div class="dialog-heading"><div><p class="eyebrow">Новый процесс</p><h2 id="create-title">Создание заказа</h2></div><button id="close-create" class="icon-button" type="button" aria-label="Закрыть форму">×</button></div>
