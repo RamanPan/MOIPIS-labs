@@ -1,0 +1,35 @@
+@startuml
+skinparam classAttributeIconSize 0
+class ConfiguredObject {
+  id
+  classId
+  values
+  links
+}
+class ProcessSnapshot {
+  stateId
+  lastActionId
+}
+class ProcessMessage {
+  id
+  parentId
+  event
+  source
+  recipient
+}
+class CoordinationSession {
+  start(userId, objectId)
+  action(userId, objectId, actionId)
+  findProcess(objectId)
+}
+CoordinationScenario --> CoordinationSession : open
+CoordinationScenario --> TemplateCatalogService : загружает шаблоны
+CoordinationSession --> ConfiguredObject : читает связи
+CoordinationSession --> ProcessSnapshot : хранит по ID
+CoordinationSession --> ProcessMessage : обрабатывает FIFO
+CoordinationSession --> CoordinationJournal : записывает исход
+CoordinationSession --> ProcessTemplate : выбирает по точному классу
+ProcessTemplate --> TransitionDefinition
+ProcessTemplate --> EventTransitionDefinition
+ProcessTemplate --> PredicateDefinition
+@enduml

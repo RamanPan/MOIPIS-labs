@@ -13,6 +13,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 public final class DefaultConditionEvaluator implements ConditionEvaluator {
 
@@ -32,15 +33,24 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
         required(predicates, "Predicates");
         required(context, "Condition context");
         Map<String, ParameterDefinition> definitions = classes.getEffectiveParameters(context.classId());
+        return evaluateDnf(condition, predicateId -> {
+            PredicateDefinition predicate = predicates.get(predicateId);
+            if (predicate == null) {
+                throw new IllegalArgumentException("Unknown predicate: " + predicateId);
+            }
+            return evaluatePredicate(predicate, context, definitions);
+        });
+    }
+
+    public static boolean evaluateDnf(DnfCondition condition, Predicate<String> predicateMatches) {
+        if (condition == null) {
+            return true;
+        }
         for (List<ConditionLiteral> group : required(condition.groups(), "Condition groups")) {
             boolean matches = true;
             for (ConditionLiteral literal : required(group, "Condition group")) {
                 required(literal, "Condition literal");
-                PredicateDefinition predicate = predicates.get(literal.predicateId());
-                if (predicate == null) {
-                    throw new IllegalArgumentException("Unknown predicate: " + literal.predicateId());
-                }
-                boolean value = evaluatePredicate(predicate, context, definitions);
+                boolean value = predicateMatches.test(literal.predicateId());
                 if (literal.negated() ? value : !value) {
                     matches = false;
                     break;

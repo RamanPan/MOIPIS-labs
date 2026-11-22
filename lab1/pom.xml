@@ -94,6 +94,12 @@
 
     <profiles>
         <profile>
+            <id>coordination</id>
+            <properties>
+                <application.mainClass>ru.moipis.workflow.demo.CoordinationDemoApplication</application.mainClass>
+            </properties>
+        </profile>
+        <profile>
             <id>web</id>
             <properties>
                 <application.mainClass>ru.moipis.workflow.web.WebApplication</application.mainClass>

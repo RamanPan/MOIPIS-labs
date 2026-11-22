@@ -8,8 +8,13 @@ public record PredicateDefinition(
         String parameterId,
         String operator,
         JsonNode value,
-        String classId
+        String classId,
+        RelatedProcess relatedProcess
 ) {
+
+    public PredicateDefinition(String id, String title, String parameterId, String operator, JsonNode value, String classId) {
+        this(id, title, parameterId, operator, value, classId, null);
+    }
 
     public PredicateDefinition(String id, String title, String parameterId, String operator, JsonNode value) {
         this(id, title, parameterId, operator, value, null);

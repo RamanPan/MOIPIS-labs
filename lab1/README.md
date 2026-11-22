@@ -17,6 +17,45 @@ WorkflowEngine и FileRepository; бизнес-правила остаются �
 
 ## Быстрый запуск
 
+### Лабораторная работа 3-1-2
+
+Для демонстрации заказа и проверки заказчика запустите из `lab1`:
+
+```shell
+mvn -Pcoordination compile exec:java
+```
+
+Вводите по одной команде на строку:
+
+```text
+start manager order-1
+start reviewer company-1
+action manager order-1 submit
+action reviewer company-1 approve
+action manager order-1 submit
+action reviewer company-1 revise
+action reviewer company-1 approve
+action manager order-1 submit
+action manager order-1 confirm
+```
+
+Первый `submit` отклоняется. Повторный проходит после `approve`. Команда
+`revise` автоматически возвращает готовый заказ в `preparing` по событию
+`customer_changed`. Последний `confirm` переводит заказ в `done`.
+
+Для демонстрации отказа доставки в новом сеансе выполните только
+`start reviewer company-1`, `action reviewer company-1 approve` и
+`action reviewer company-1 revise`. Переход источника выполнится, а доставка
+к незапущенному заказу даст `PROCESS_NOT_STARTED`.
+
+Сеанс выводит путь к `demo/coordination/run-…/journal.jsonl`. Сопоставьте
+`parentId` записи `EVENT` с `id` породившей записи. Для своей конфигурации
+передайте путь через `-Dexec.args`. Пример JSON находится в
+[coordination-3-1-2.json](src/main/resources/seed/coordination-3-1-2.json).
+В [отчёте](docs/report-3-1-2.md) приведены диаграммы и результаты запуска.
+
+### Лабораторная работа 3-1-1
+
 Требуются **JDK 21** и **Maven 3.9+**. Выполняйте команды из каталога `lab1`.
 `JAVA_HOME` должен указывать на JDK 21; проверьте `mvn -version`.
 
