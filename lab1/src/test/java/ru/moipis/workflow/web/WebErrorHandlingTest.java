@@ -1,6 +1,8 @@
 package ru.moipis.workflow.web;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
@@ -8,6 +10,12 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * The REST error contract (status/code/message/details, no stack traces, store left untouched) is
+ * covered as a black-box suite in {@code integration-autotests}. What remains here are the two
+ * scenarios that need a Java-level hook with no REST equivalent: forcing a handler to fail or
+ * proving one was never invoked, and observing the engine after it has been closed directly.
+ */
 class WebErrorHandlingTest {
     @TempDir Path directory;
     WebTestFixture fixture;
@@ -15,120 +23,6 @@ class WebErrorHandlingTest {
 
     @BeforeEach void open() throws Exception { fixture = new WebTestFixture(directory.resolve("store.json")); }
     @AfterEach void close() { if (fixture != null) fixture.close(); }
-
-    @Test void wrongRoleAndFalseConditionDoNotChangeObjectsHistoryOrFile() throws Exception {
-        unchanged("POST", root + "/actions", """
-                {"userId":"user_finance","actionId":"complete"}
-                """, 403, "ACCESS_DENIED");
-        assertEquals(200, fixture.send("POST", root + "/actions", """
-                {"userId":"user_manager","actionId":"complete"}
-                """).statusCode());
-        unchanged("POST", root + "/actions", """
-                {"userId":"user_manager","actionId":"approve"}
-                """, 409, "CONDITION_NOT_MET");
-    }
-
-    @Test void requestShapeAndParameterTypeErrorsHaveOneJsonFormat() throws Exception {
-        unchanged("POST", "/api/objects", "{", 400, "INVALID_REQUEST");
-        unchanged("POST", "/api/objects", "null", 400, "INVALID_REQUEST");
-        unchanged("POST", "/api/objects", """
-                {"userId":"user_manager","classId":"office_order","parameters":{},"stateId":"completed"}
-                """, 400, "INVALID_REQUEST");
-        unchanged("PATCH", root + "/parameters/quantity", """
-                {"userId":"user_manager","value":"100"}
-                """, 400, "INVALID_PARAMETER_TYPE");
-        unchanged("PATCH", root + "/parameters/quantity", """
-                {"userId":"user_manager"}
-                """, 400, "INVALID_REQUEST");
-        unchanged("PATCH", root + "/parameters/no_such_parameter", """
-                {"userId":"user_manager","value":100}
-                """, 400, "UNKNOWN_PARAMETER");
-        unchanged("GET", root + "/access", null, 400, "INVALID_REQUEST");
-        unchanged("POST", root + "/actions", """
-                {"userId":"user_manager","actionId":"complete"} {}
-                """, 400, "INVALID_REQUEST");
-    }
-
-    @Test void missingResourcesAndUsersReturn404() throws Exception {
-        unchanged("GET", "/api/objects/missing", null, 404, "NOT_FOUND");
-        unchanged("GET", "/api/classes/missing/parameters", null, 404, "NOT_FOUND");
-        unchanged("GET", "/api/not-a-route", null, 404, "NOT_FOUND");
-        unchanged("GET", root + "/access?userId=missing", null, 404, "NOT_FOUND");
-        unchanged("POST", "/api/objects", """
-                {"userId":"user_manager","classId":"missing","parameters":{}}
-                """, 404, "NOT_FOUND");
-    }
-
-    @Test void classWithoutAProcessIsAConflictAndDoesNotChangeStore() throws Exception {
-        unchanged("POST", "/api/objects", """
-                {"userId":"user_manager","classId":"order","parameters":{"order_number":"ROOT-FAIL"}}
-                """, 409, "NO_PROCESS_TEMPLATE");
-    }
-
-    @Test void invalidConfiguredTemplateRemainsAServerError() throws Exception {
-        fixture.repository.update(store -> {
-            var templates = store.templates().stream().map(template ->
-                    new ru.moipis.workflow.template.model.ProcessTemplate(template.id(), template.title(), template.classId(),
-                            template.createRoles(), template.actions(), template.predicates(),
-                            template.states().stream().map(state -> new ru.moipis.workflow.template.model.StateDefinition(
-                                    state.id(), state.title(), false, state.terminal(), state.roles(), state.editParameters())).toList(),
-                            template.transitions())).toList();
-            return new ru.moipis.workflow.repository.model.StoreData(store.schemaVersion(), store.classes(),
-                    store.roles(), store.users(), templates, store.objects(), store.history());
-        });
-        unchanged("POST", "/api/objects", """
-                {"userId":"user_manager","classId":"office_order","parameters":{}}
-                """, 500, "TEMPLATE_ERROR");
-    }
-
-    @Test void readOnlyAndTerminalStatesAreCheckedByTheBackend() throws Exception {
-        String objectRoot = "/api/objects/demo-office-valid";
-        action(objectRoot, "complete");
-        action(objectRoot, "approve");
-        unchanged("PATCH", objectRoot + "/parameters/quantity", """
-                {"userId":"user_coordinator","value":10}
-                """, 403, "ACCESS_DENIED");
-        action(objectRoot, "approve");
-        action(objectRoot, "approve");
-        action(objectRoot, "approve");
-        action(objectRoot, "execute");
-        action(objectRoot, "complete");
-        var access = fixture.json(fixture.send("GET", objectRoot + "/access?userId=user_coordinator", null));
-        assertFalse(access.path("canEditParameters").asBoolean());
-        assertEquals(0, access.path("availableActions").size());
-        unchanged("POST", objectRoot + "/actions", """
-                {"userId":"user_coordinator","actionId":"complete"}
-                """, 409, "FINAL_STATE");
-        unchanged("PATCH", objectRoot + "/parameters/quantity", """
-                {"userId":"user_coordinator","value":10}
-                """, 409, "FINAL_STATE");
-    }
-
-    @Test void nullClearsAValueAndExactJsonNumbersSurviveHttp() throws Exception {
-        var clear = fixture.send("PATCH", root + "/parameters/block_reason", """
-                {"userId":"user_manager","value":null}
-                """);
-        assertEquals(200, clear.statusCode(), clear.body());
-        assertTrue(fixture.engine.getObject("demo-office-quantity-700").parameters().get("block_reason").isNull());
-        var created = fixture.send("POST", "/api/objects", """
-                {"userId":"user_manager","classId":"office_order","parameters":{
-                "quantity":123456789012345678901234567890,"total_amount":0.12345678901234567890123456789}}
-                """);
-        assertEquals(201, created.statusCode(), created.body());
-        var object = fixture.engine.getObject(fixture.json(created).path("id").asText());
-        assertEquals("123456789012345678901234567890", object.parameters().get("quantity").asText());
-        assertEquals("0.12345678901234567890123456789", object.parameters().get("total_amount").asText());
-        assertTrue(created.body().contains("0.12345678901234567890123456789"));
-    }
-
-    @Test void numericIdentifiersAndCreationWithoutARoleAreRejected() throws Exception {
-        unchanged("POST", "/api/objects", """
-                {"userId":123,"classId":"office_order","parameters":{}}
-                """, 400, "INVALID_REQUEST");
-        unchanged("POST", "/api/objects", """
-                {"userId":"user_finance","classId":"office_order","parameters":{}}
-                """, 403, "ACCESS_DENIED");
-    }
 
     @Test void ambiguousTransitionsAre409AndDoNotInvokeTheHandler() throws Exception {
         ru.moipis.workflow.template.model.ProcessTemplate template;
@@ -163,12 +57,6 @@ class WebErrorHandlingTest {
         unchanged("POST", root + "/actions", """
                 {"userId":"user_manager","actionId":"complete"}
                 """, 503, "ENGINE_CLOSED");
-    }
-
-    void action(String path, String action) throws Exception {
-        var response = fixture.send("POST", path + "/actions",
-                "{\"userId\":\"user_coordinator\",\"actionId\":\"" + action + "\"}");
-        assertEquals(200, response.statusCode(), response.body());
     }
 
     void unchanged(String method, String path, String body, int status, String code) throws Exception {

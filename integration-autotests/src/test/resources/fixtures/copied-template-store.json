@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "classes": [
+    {
+      "id": "order",
+      "title": "Заказ",
+      "parentId": null,
+      "parameters": []
+    },
+    {
+      "id": "standard_order",
+      "title": "Заказ стандартной продукции",
+      "parentId": "order",
+      "parameters": []
+    },
+    {
+      "id": "office_order",
+      "title": "Заказ для офиса",
+      "parentId": "standard_order",
+      "parameters": []
+    },
+    {
+      "id": "consumables_order",
+      "title": "Заказ расходных материалов",
+      "parentId": "standard_order",
+      "parameters": []
+    }
+  ],
+  "roles": [
+    {
+      "id": "order_manager",
+      "title": "Менеджер заказа"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_manager",
+      "name": "Анна — менеджер заказа",
+      "roles": [
+        "order_manager"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "standard_order_supply",
+      "title": "Б.3 — Управление заказом на поставку стандартной продукции",
+      "classId": "standard_order",
+      "createRoles": [
+        "order_manager"
+      ],
+      "actions": [],
+      "predicates": [],
+      "states": [
+        {
+          "id": "registration",
+          "title": "Регистрация",
+          "initial": true,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    {
+      "id": "office_copy",
+      "title": "Б.3 — Управление заказом на поставку стандартной продукции (копия для офиса)",
+      "classId": "office_order",
+      "createRoles": [
+        "order_manager"
+      ],
+      "actions": [],
+      "predicates": [],
+      "states": [
+        {
+          "id": "registration",
+          "title": "Регистрация",
+          "initial": true,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ]
+        }
+      ],
+      "transitions": []
+    }
+  ],
+  "objects": [
+    {
+      "id": "demo-office-valid",
+      "classId": "office_order",
+      "parameters": {},
+      "stateId": "registration",
+      "templateId": "standard_order_supply"
+    }
+  ],
+  "history": []
+}

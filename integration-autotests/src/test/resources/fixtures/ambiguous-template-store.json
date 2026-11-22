@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "classes": [
+    {
+      "id": "order",
+      "title": "Заказ",
+      "parentId": null,
+      "parameters": [
+        {
+          "id": "quantity",
+          "title": "Количество",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "id": "office_order",
+      "title": "Заказ для офиса",
+      "parentId": "order",
+      "parameters": []
+    }
+  ],
+  "roles": [
+    {
+      "id": "order_manager",
+      "title": "Менеджер заказа"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_manager",
+      "name": "Анна — менеджер заказа",
+      "roles": [
+        "order_manager"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "ambiguous-workflow",
+      "title": "Тест ошибки: две одновременно допустимые дуги",
+      "classId": "office_order",
+      "createRoles": [
+        "order_manager"
+      ],
+      "actions": [
+        {
+          "id": "choose",
+          "title": "Выбрать"
+        }
+      ],
+      "predicates": [
+        {
+          "id": "positive",
+          "parameterId": "quantity",
+          "operator": ">=",
+          "value": 1
+        },
+        {
+          "id": "small",
+          "parameterId": "quantity",
+          "operator": "<=",
+          "value": 500
+        }
+      ],
+      "states": [
+        {
+          "id": "start",
+          "title": "Начало",
+          "initial": true,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ]
+        },
+        {
+          "id": "first",
+          "title": "Первая цель",
+          "initial": false,
+          "final": true,
+          "roles": []
+        },
+        {
+          "id": "second",
+          "title": "Вторая цель",
+          "initial": false,
+          "final": true,
+          "roles": []
+        }
+      ],
+      "transitions": [
+        {
+          "from": "start",
+          "action": "choose",
+          "to": "first",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "positive",
+                  "negated": false
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "from": "start",
+          "action": "choose",
+          "to": "second",
+          "condition": {
+            "groups": [
+              [
+                {
+                  "predicateId": "small",
+                  "negated": false
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "objects": [],
+  "history": []
+}

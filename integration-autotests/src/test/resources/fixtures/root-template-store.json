@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "classes": [
+    {
+      "id": "order",
+      "title": "Заказ",
+      "parentId": null,
+      "parameters": [
+        {
+          "id": "order_number",
+          "title": "Номер заказа",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "order_manager",
+      "title": "Менеджер заказа"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_manager",
+      "name": "Анна — менеджер заказа",
+      "roles": [
+        "order_manager"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "root_process",
+      "title": "Шаблон базового класса",
+      "classId": "order",
+      "createRoles": [
+        "order_manager"
+      ],
+      "actions": [],
+      "predicates": [],
+      "states": [
+        {
+          "id": "draft",
+          "title": "Черновик",
+          "initial": true,
+          "final": false,
+          "roles": [
+            "order_manager"
+          ]
+        }
+      ],
+      "transitions": []
+    }
+  ],
+  "objects": [],
+  "history": []
+}

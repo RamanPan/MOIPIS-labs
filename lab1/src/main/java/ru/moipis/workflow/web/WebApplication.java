@@ -63,11 +63,11 @@ public final class WebApplication implements AutoCloseable {
     }
 
     public static void main(String[] args) throws Exception {
-        Path path = storePath(args, System.getenv("WORKFLOW_WEB_STORE"));
-        WebApplication app = start(path, 7070);
+        Arguments arguments = parseArguments(args, System.getenv("WORKFLOW_WEB_STORE"));
+        WebApplication app = start(arguments.storePath(), arguments.port());
         Runtime.getRuntime().addShutdownHook(new Thread(app::close, "workflow-web-shutdown"));
-        System.out.println("Workflow API: http://127.0.0.1:7070/api/objects");
-        System.out.println("JSON store: " + path.toAbsolutePath().normalize());
+        System.out.println("Workflow API: http://127.0.0.1:" + app.port() + "/api/objects");
+        System.out.println("JSON store: " + arguments.storePath().toAbsolutePath().normalize());
         try {
             app.stopped.await();
         } catch (InterruptedException interrupted) {
@@ -76,9 +76,38 @@ public final class WebApplication implements AutoCloseable {
         }
     }
 
-    static Path storePath(String[] args, String environmentPath) {
-        if (args.length == 2 && args[0].equals("--store") && !args[1].isBlank()) return Path.of(args[1]);
-        if (args.length != 0) throw new IllegalArgumentException("Usage: WebApplication [--store path/to/store.json]");
-        return Path.of(environmentPath == null || environmentPath.isBlank() ? "demo/web/store.json" : environmentPath);
+    static Arguments parseArguments(String[] args, String environmentPath) {
+        Path storePath = null;
+        Integer port = null;
+        for (int i = 0; i < args.length; i += 2) {
+            if (i + 1 >= args.length) throw usage();
+            String value = args[i + 1];
+            switch (args[i]) {
+                case "--store" -> {
+                    if (storePath != null || value.isBlank()) throw usage();
+                    storePath = Path.of(value);
+                }
+                case "--port" -> {
+                    if (port != null) throw usage();
+                    try {
+                        port = Integer.parseInt(value);
+                    } catch (NumberFormatException invalid) {
+                        throw usage();
+                    }
+                }
+                default -> throw usage();
+            }
+        }
+        if (storePath == null) {
+            storePath = Path.of(environmentPath == null || environmentPath.isBlank() ? "demo/web/store.json" : environmentPath);
+        }
+        return new Arguments(storePath, port == null ? 7070 : port);
+    }
+
+    private static IllegalArgumentException usage() {
+        return new IllegalArgumentException("Usage: WebApplication [--store path/to/store.json] [--port N]");
+    }
+
+    record Arguments(Path storePath, int port) {
     }
 }

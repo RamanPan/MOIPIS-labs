@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>ru.moipis</groupId>
+    <artifactId>integration-autotests</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <name>Workflow Engine REST Black-Box Tests</name>
+
+    <!--
+        Намеренно не зависит от артефакта workflow-engine (lab1): эти тесты только общаются
+        с отдельно запущенным процессом сервера по настоящему HTTP и читают его JSON-файл с диска,
+        поэтому в classpath этого модуля нет ничего, что могло бы импортировать внутренний класс продакшена.
+    -->
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- JUnit 6 (Jupiter объединил здесь нумерацию версий с Platform/Vintage); нужен, потому что
+             модуль allure-junit-platform из allure-jupiter 3.x подтягивает junit-platform-launcher 6.x. -->
+        <junit.version>6.1.3</junit.version>
+        <jackson.version>2.20.1</jackson.version>
+        <!-- allure-jupiter, allure-bom и allure-descriptions-javadoc выходят синхронно на этой линии;
+             allure-junit5 — старое, уже не публикуемое имя allure-jupiter. -->
+        <allure.version>3.1.1</allure.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-bom</artifactId>
+                <version>${allure.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Регистрируется в JUnit Platform launcher через ServiceLoader; пишет target/allure-results. -->
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.1</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <!-- Только на этапе компиляции: копирует Javadoc каждого тестового метода в description для Allure. -->
+                        <path>
+                            <groupId>io.qameta.allure</groupId>
+                            <artifactId>allure-descriptions-javadoc</artifactId>
+                            <version>${allure.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+                <configuration>
+                    <!-- У каждого подпроцесса сервера своё окно старта/остановки; не дать набору тестов зависнуть навсегда. -->
+                    <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
+                </configuration>
+            </plugin>
+            <plugin>
+                <!--
+                    Рендерит target/allure-results в HTML-отчёт сразу после прогона тестов. При успешном
+                    `mvn test` это происходит автоматически. Если тест упал, Maven останавливается до этого
+                    шага, но результаты к этому моменту уже на диске — выполните один раз `mvn allure:report`
+                    (статическая страница) или `mvn allure:serve` (поднимает локальный сервер), не перезапуская тесты.
+
+                    singleFile=true — страница самодостаточна (все данные инлайн), поэтому следующий шаг
+                    может открыть её прямо как файл без локального сервера.
+                -->
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-maven</artifactId>
+                <!-- allure-maven выходит в своём темпе, сейчас на один патч-релиз позади allure.version. -->
+                <version>3.1.0</version>
+                <configuration>
+                    <singleFile>true</singleFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>generate-allure-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!--
+                    Открывает уже готовый (предыдущий шаг) allure-отчёт в браузере по умолчанию ОС, не
+                    блокируя сборку: `open` возвращается сразу после запуска приложения. macOS-специфично
+                    (команда `open`); на другой ОС эту цель нужно отключить или заменить на свой аналог
+                    (например, `xdg-open` в Linux).
+                -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>open-allure-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>open</executable>
+                            <arguments>
+                                <argument>${project.reporting.outputDirectory}/allure-maven-plugin/index.html</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
