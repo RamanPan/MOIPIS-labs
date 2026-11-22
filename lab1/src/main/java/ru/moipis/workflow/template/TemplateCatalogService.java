@@ -10,6 +10,7 @@ import ru.moipis.workflow.repository.Repository;
 import ru.moipis.workflow.repository.model.StoreData;
 import ru.moipis.workflow.statemachine.factory.StateMachineConfiguration;
 import ru.moipis.workflow.template.model.ActionDefinition;
+import ru.moipis.workflow.template.model.EventTransitionDefinition;
 import ru.moipis.workflow.template.model.ProcessTemplate;
 import ru.moipis.workflow.template.model.StateDefinition;
 import ru.moipis.workflow.template.model.TransitionDefinition;
@@ -63,7 +64,8 @@ public final class TemplateCatalogService {
             throw new IllegalArgumentException("Class already has its own template: " + targetClassId);
         }
         ProcessTemplate copied = snapshot(new ProcessTemplate(newTemplateId, source.title(), targetClassId,
-                source.createRoles(), source.actions(), source.predicates(), source.states(), source.transitions()));
+                source.createRoles(), source.actions(), source.predicates(), source.states(), source.transitions(),
+                source.eventTransitions()));
         validateReferences(copied, indexById(store.roles(), RoleDefinition::id, "Role").keySet());
         List<ProcessTemplate> templates = new ArrayList<>(store.templates());
         templates.add(copied);
@@ -132,7 +134,14 @@ public final class TemplateCatalogService {
         Map<String, StateDefinition> states = indexById(template.states(), StateDefinition::id, "State");
         requireReferences(template.createRoles(), roleIds, "create roles of template " + template.id());
         for (PredicateDefinition predicate : predicates.values()) {
-            if (predicate.classId() != null) {
+            if (predicate.relatedProcess() != null) {
+                if (predicate.classId() != null || predicate.parameterId() != null
+                        || !("=".equals(predicate.operator()) || "!=".equals(predicate.operator()))
+                        || predicate.value() == null || !predicate.value().isTextual()
+                        || predicate.value().textValue().isBlank()) {
+                    throw new IllegalArgumentException("Invalid related process predicate: " + predicate.id());
+                }
+            } else if (predicate.classId() != null) {
                 if (predicate.parameterId() != null) {
                     throw new IllegalArgumentException("Predicate cannot reference both a class and a parameter: " + predicate.id());
                 }
@@ -150,13 +159,23 @@ public final class TemplateCatalogService {
             requireReference(transition.from(), states.keySet(), "source state in template " + template.id());
             requireReference(transition.to(), states.keySet(), "target state in template " + template.id());
             requireReference(transition.action(), actionIds, "action in template " + template.id());
-            if (transition.condition() != null) {
-                for (List<ConditionLiteral> group : required(transition.condition().groups(), "Condition groups")) {
-                    for (ConditionLiteral literal : required(group, "Condition group")) {
-                        requireReference(required(literal, "Condition literal").predicateId(), predicates.keySet(),
-                                "predicate in template " + template.id());
-                    }
-                }
+            validateCondition(transition.condition(), predicates.keySet(), template.id());
+        }
+        for (EventTransitionDefinition transition : template.eventTransitions()) {
+            requireReference(transition.from(), states.keySet(), "event source state in " + template.id());
+            requireReference(transition.to(), states.keySet(), "event target state in " + template.id());
+            validateCondition(transition.condition(), predicates.keySet(), template.id());
+        }
+    }
+
+    private static void validateCondition(DnfCondition condition, Set<String> predicates, String templateId) {
+        if (condition == null) {
+            return;
+        }
+        for (List<ConditionLiteral> group : required(condition.groups(), "Condition groups")) {
+            for (ConditionLiteral literal : required(group, "Condition group")) {
+                requireReference(required(literal, "Condition literal").predicateId(), predicates,
+                        "predicate in template " + templateId);
             }
         }
     }
@@ -204,11 +223,16 @@ public final class TemplateCatalogService {
                 template.actions().stream().map(action -> new ActionDefinition(action.id(), action.title())).toList(),
                 template.predicates().stream().map(predicate -> new PredicateDefinition(predicate.id(), predicate.title(),
                         predicate.parameterId(), predicate.operator(),
-                        predicate.value() == null ? null : predicate.value().deepCopy(), predicate.classId())).toList(),
+                        predicate.value() == null ? null : predicate.value().deepCopy(), predicate.classId(),
+                        predicate.relatedProcess())).toList(),
                 template.states().stream().map(state -> new StateDefinition(state.id(), state.title(), state.initial(),
                         state.terminal(), copySet(state.roles()), state.editParameters())).toList(),
                 template.transitions().stream().map(transition -> new TransitionDefinition(transition.from(),
-                        transition.action(), transition.to(), copyCondition(transition.condition()))).toList());
+                        transition.action(), transition.to(), copyCondition(transition.condition()),
+                        transition.emit())).toList(),
+                template.eventTransitions().stream().map(transition -> new EventTransitionDefinition(transition.from(),
+                        transition.event(), transition.sourceLink(), transition.to(), copyCondition(transition.condition()),
+                        transition.emit())).toList());
     }
 
     private static Set<String> copySet(Set<String> values) {

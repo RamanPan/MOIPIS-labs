@@ -24,7 +24,8 @@ public final class DefaultStateMachineFactory implements StateMachineFactory {
         Map<String, PredicateDefinition> predicates = configuration.template().predicates().stream()
                 .collect(Collectors.toUnmodifiableMap(PredicateDefinition::id, predicate -> new PredicateDefinition(
                         predicate.id(), predicate.title(), predicate.parameterId(), predicate.operator(),
-                        predicate.value() == null ? null : predicate.value().deepCopy(), predicate.classId())));
+                        predicate.value() == null ? null : predicate.value().deepCopy(), predicate.classId(),
+                        predicate.relatedProcess())));
         StateDefinition initial = configuration.template().states().stream()
                 .filter(state -> state.id().equals(configuration.initialStateId())).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown initial state: " + configuration.initialStateId()));

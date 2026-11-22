@@ -1,0 +1,14 @@
+@startuml
+actor "Проверяющий" as R
+participant "Сеанс" as S
+participant "Журнал JSONL" as J
+R -> S : action reviewer company-1 revise
+S -> S : Найти адресатов по orders
+S -> J : ACTION revise, verified → checking
+S -> S : Зафиксировать состояние company-1
+S -> S : Поставить customer_changed в очередь
+S -> S : Взять сообщение и проверить связь customer
+S -> J : EVENT customer_changed, ready → preparing
+S -> S : Зафиксировать состояние order-1
+S --> R : Результат команды и доставки
+@enduml
