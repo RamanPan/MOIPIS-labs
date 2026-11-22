@@ -1,0 +1,28 @@
+@startuml
+!pragma layout smetana
+title 3-1-2 · Состояния процесса заказа
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam state {
+  BackgroundColor #F5F8FD
+  BorderColor #405C82
+}
+
+state "Подготовка\npreparing" as preparing
+state "Готов к подтверждению\nready" as ready
+state "Подтверждён\ndone" as done #E3F3E8
+
+[*] --> preparing : start
+preparing --> ready : submit [G]
+ready --> done : confirm [G]
+ready -left-> preparing : return
+ready -[#7854B3]-> preparing : customer_changed\n[источник входит в customer]
+done --> [*]
+
+legend bottom
+  Пользовательские действия выполняет менеджер.
+  G: 1 ≤ amount ≤ 100 000 И для всех процессов по customer:
+     state = verified И last_action = approve.
+  Событие меняет состояние, сохраняя последнее пользовательское действие.
+endlegend
+@enduml

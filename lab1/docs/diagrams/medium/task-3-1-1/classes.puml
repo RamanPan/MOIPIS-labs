@@ -1,0 +1,74 @@
+@startuml
+!pragma layout smetana
+title 3-1-1 · Классы исполнителя процесса Б.3
+hide empty members
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 15
+skinparam class {
+  BackgroundColor #F5F8FD
+  BorderColor #405C82
+}
+
+class CoordinationScenario {
+  catalog : StoreData
+  objects : List<ConfiguredObject>
+  + task311() : CoordinationScenario
+  + openTask311(log) : Task311Commands
+}
+class Task311Commands {
+  + submit(rawCommand) : Entry
+}
+class CoordinationSession {
+  - objects : Map<String, ConfiguredObject>
+  - templates : Map<String, ProcessTemplate>
+  - processes : Map<String, ProcessSnapshot>
+  ~ submit(kind, userId, objectId, actionId, command) : Entry
+  - selectAction(step, object, template, state) : Transition
+  - evaluate(condition, object, template) : ConditionResult
+}
+class ConfiguredObject <<record>> {
+  id : String
+  classId : String
+  values : Map<String, JsonNode>
+}
+class ProcessTemplate <<record>> {
+  classId : String
+  createRoles : Set<String>
+  states : List<StateDefinition>
+  transitions : List<TransitionDefinition>
+  predicates : List<PredicateDefinition>
+}
+class "CoordinationSession\n.ProcessSnapshot" as ProcessSnapshot <<record>> {
+  stateId : String
+  lastActionId : String
+}
+class CatalogService {
+  + getEffectiveParameters(classId) : Map
+}
+class DefaultConditionEvaluator {
+  + evaluatePredicate(predicate, context) : boolean
+}
+class WorkflowAccessPolicy {
+  {static} + hasRole(user, roles) : boolean
+}
+class CoordinationJournal {
+  ~ append(entry)
+}
+
+CoordinationScenario ..> Task311Commands : создаёт обёртку
+CoordinationScenario ..> CatalogService : подготавливает каталог
+Task311Commands --> CoordinationSession : передаёт разобранную команду
+CoordinationSession --> "0..*" ConfiguredObject : по ID объекта
+CoordinationSession --> "0..*" ProcessTemplate : по точному ID класса
+CoordinationSession --> "0..*" ProcessSnapshot : по ID объекта
+CoordinationSession ..> WorkflowAccessPolicy : роли запуска и этапа
+CoordinationSession --> DefaultConditionEvaluator : локальный предикат
+DefaultConditionEvaluator --> CatalogService : эффективные параметры
+CoordinationSession --> CoordinationJournal : результат в JSONL
+
+legend bottom
+  Показаны поля и операции пути 3-1-1. Группы ДНФ обходит CoordinationSession.
+  Объект существует до запуска. Снимок появляется после успешного START.
+endlegend
+@enduml

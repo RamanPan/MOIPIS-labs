@@ -1,0 +1,46 @@
+@startuml
+title 3-1-1 · Обработка команды и запись результата
+hide footbox
+skinparam shadowing false
+skinparam defaultFontSize 15
+
+actor "Пользователь" as User
+participant "Консоль\nили браузер" as Input
+participant Task311Commands as Commands
+participant CoordinationSession as Session
+participant "WorkflowAccessPolicy\nи вычислитель предикатов" as Checks
+participant CoordinationJournal as Journal
+
+User -> Input : Запустить процесс или выполнить действие
+Input -> Commands : submit(rawCommand)
+Commands -> Commands : Разобрать JSON и извлечь поля
+Commands -> Session : submit(kind, userId, objectId, actionId, command)
+alt Некорректная команда
+  Session -> Journal : append(ERROR, INVALID_COMMAND, before → before)
+else Команда разобрана
+  Session -> Session : Найти объект и шаблон его точного класса
+  alt START
+    Session -> Session : Проверить, что процесс ещё не запущен
+    Session -> Checks : Проверить createRoles
+    Session -> Session : Найти единственное начальное состояние
+  else ACTION
+    Session -> Session : Прочитать снимок и проверить этап
+    Session -> Checks : Проверить роль текущего состояния
+    Session -> Session : Отобрать переходы по состоянию и действию
+    Session -> Checks : Вычислить локальные предикаты для ДНФ
+    Session -> Session : Выбрать единственный подходящий переход
+  end
+  alt Шаг принят, запись успешна
+    Session -> Journal : append(SUCCESS, before → after)
+    Session -> Session : Сохранить новый ProcessSnapshot
+  else Отказ или ошибка шага
+    Session -> Journal : append(REJECTED / ERROR, before → before)
+  end
+end
+Session --> Commands : Entry
+Commands --> Input : Исход, состояния и причина
+Input --> User : Показать результат
+note over Session, Journal
+  При ошибке записи новый снимок не публикуется.
+end note
+@enduml

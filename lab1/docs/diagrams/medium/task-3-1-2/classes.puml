@@ -1,0 +1,84 @@
+@startuml
+!pragma layout smetana
+title 3-1-2 · Классы координации процессов
+hide empty members
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam defaultFontSize 15
+skinparam class {
+  BackgroundColor #F5F8FD
+  BorderColor #405C82
+}
+
+class CoordinationScenario {
+  + open(log) : CoordinationSession
+}
+class CoordinationSession {
+  - processes : Map<String, ProcessSnapshot>
+  - queue : Queue<ProcessMessage>
+  + start(userId, objectId) : Result
+  + action(userId, objectId, actionId) : Result
+  - relatedMatches(predicate, object) : boolean
+  - selectEvent(step, object, template, state) : Transition
+}
+class ConfiguredObject <<record>> {
+  id : String
+  classId : String
+  links : Map<String, List<String>>
+  ~ linkedObjects(name) : List<String>
+}
+class "CoordinationSession\n.ProcessSnapshot" as ProcessSnapshot <<record>> {
+  stateId : String
+  lastActionId : String
+}
+class "CoordinationSession\n.ProcessMessage" as ProcessMessage <<record>> {
+  id : String
+  parentId : String
+  event : String
+  source : String
+  recipient : String
+}
+class CoordinationJournal {
+  ~ append(entry)
+}
+class ProcessTemplate <<record>>
+class PredicateDefinition <<record>> {
+  operator : String
+  value : JsonNode
+}
+class RelatedProcess <<record>> {
+  link : String
+  field : String
+  aggregate : String
+}
+class TransitionDefinition <<record>> {
+  from, action, to : String
+  condition : DnfCondition
+}
+class EventTransitionDefinition <<record>> {
+  from, event, sourceLink, to : String
+  condition : DnfCondition
+}
+class EventEmission <<record>> {
+  event : String
+  recipientLink : String
+}
+
+CoordinationScenario ..> CoordinationSession : загружает и создаёт
+CoordinationSession --> ConfiguredObject : читает именованные связи
+CoordinationSession --> ProcessSnapshot : хранит по ID объекта
+CoordinationSession --> ProcessMessage : обрабатывает FIFO
+CoordinationSession --> CoordinationJournal : пишет исходы шагов
+CoordinationSession --> ProcessTemplate : выбирает по классу
+ProcessTemplate --> "0..*" PredicateDefinition : predicates
+ProcessTemplate --> "0..*" TransitionDefinition : transitions
+ProcessTemplate --> "0..*" EventTransitionDefinition : eventTransitions
+PredicateDefinition --> "0..1" RelatedProcess : relatedProcess
+TransitionDefinition --> "0..*" EventEmission : emit
+EventTransitionDefinition --> "0..*" EventEmission : emit
+
+legend bottom
+  RelatedProcess выбирает поле state или last_action. Поддерживается all.
+  recipientLink — имя связи у источника. sourceLink — имя связи у получателя.
+endlegend
+@enduml

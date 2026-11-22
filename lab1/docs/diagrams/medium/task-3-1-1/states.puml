@@ -1,0 +1,61 @@
+@startuml
+!pragma layout smetana
+title 3-1-1 · Состояния и переходы заказа Б.3
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam state {
+  BackgroundColor #F5F8FD
+  BorderColor #405C82
+}
+
+state "Регистрация" as registration
+registration : менеджер заказа
+state "Согласование состава" as composition_approval
+composition_approval : менеджер заказа
+state "Согласование цены" as price_approval
+price_approval : специалист по закупкам
+state "Согласование графика поставки" as delivery_approval
+delivery_approval : логист
+state "Согласование графика оплаты" as payment_approval
+payment_approval : финансовый специалист
+state "Отложенное рассмотрение" as postponed_review #FFF2D5
+postponed_review : менеджер заказа
+state "Решение о выполнении" as execution_decision
+execution_decision : руководитель закупок
+state "Выполнение" as execution
+execution : исполнитель
+state "Отложенное выполнение" as postponed_execution #FFF2D5
+postponed_execution : руководитель закупок
+state "Выполнено" as completed #E3F3E8
+
+[*] --> registration : start
+registration --> composition_approval : complete
+composition_approval --> price_approval : approve [G1]
+composition_approval --> postponed_review : postpone
+price_approval --> delivery_approval : approve [G2]
+price_approval --> composition_approval : correction
+price_approval --> postponed_review : postpone
+delivery_approval --> payment_approval : approve [G3]
+delivery_approval --> composition_approval : correction
+delivery_approval --> postponed_review : postpone
+payment_approval --> execution_decision : approve [G4]
+payment_approval --> composition_approval : correction
+payment_approval --> postponed_review : postpone
+postponed_review --> composition_approval : resume_review
+execution_decision --> execution : execute
+execution_decision --> composition_approval : return_to_approval
+execution_decision --> postponed_execution : postpone_review
+execution --> completed : complete [G5]
+execution --> postponed_execution : postpone_execution
+postponed_execution --> execution_decision : reconsider
+completed --> [*]
+
+legend bottom
+  10 состояний и 19 переходов. Старт создаёт снимок в registration.
+  G1: номер, продукция и поставщик заданы. Количество в диапазоне класса.
+  G2: сумма задана и в диапазоне. G3: срок поставки задан и в диапазоне.
+  G4: сумма в диапазоне и причина блокировки не задана. Предоплата ≤ 30%
+      либо офисный класс и предоплата ≤ 50%.
+  G5: заполнены обязательные параметры завершения.
+endlegend
+@enduml

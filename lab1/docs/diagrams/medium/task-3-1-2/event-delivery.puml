@@ -1,0 +1,42 @@
+@startuml
+title 3-1-2 · Событие от команды revise до результата доставки
+hide footbox
+skinparam shadowing false
+skinparam defaultFontSize 15
+
+actor "Проверяющий" as Reviewer
+participant CoordinationSession as Session
+participant "Очередь FIFO\nв памяти" as Queue
+participant CoordinationJournal as Journal
+
+Reviewer -> Session : action(reviewer, company-1, revise)
+Session -> Session : Проверить роль и переход из verified
+Session -> Session : Найти адресатов по orders
+alt Связь orders пуста
+  Session -> Journal : ACTION · REJECTED · EMPTY_RECIPIENT_LINK
+  Session --> Reviewer : Компания остаётся в verified
+else Адресаты найдены
+  Session -> Session : Подготовить сообщение с parentId = id команды
+  Session -> Journal : ACTION · SUCCESS · verified → checking
+  Session -> Session : Сохранить снимок компании
+  Session -> Queue : Добавить customer_changed
+  loop Пока очередь содержит сообщения
+    Session -> Queue : Взять следующее сообщение
+    Queue --> Session : ProcessMessage
+    Session -> Session : Найти процесс получателя и выбрать переход
+    alt Заказ в ready и источник входит в customer
+      Session -> Journal : EVENT · SUCCESS · ready → preparing
+      Session -> Session : Сохранить состояние заказа\nс прежним lastActionId
+    else Процесс получателя не запущен
+      Session -> Journal : EVENT · REJECTED · PROCESS_NOT_STARTED
+    else Переход недоступен или неоднозначен
+      Session -> Journal : EVENT · REJECTED или ERROR
+    end
+  end
+  Session --> Reviewer : Result(command, deliveries)
+end
+note over Session, Journal
+  Отказ доставки не отменяет переход компании.
+  EVENT.parentId позволяет найти породивший шаг.
+end note
+@enduml

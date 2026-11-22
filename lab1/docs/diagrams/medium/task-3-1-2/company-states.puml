@@ -1,0 +1,25 @@
+@startuml
+!pragma layout smetana
+title 3-1-2 · Состояния процесса проверки заказчика
+skinparam shadowing false
+skinparam defaultFontSize 15
+skinparam state {
+  BackgroundColor #F5F8FD
+  BorderColor #405C82
+}
+left to right direction
+
+state "На проверке\nchecking" as checking
+state "Заказчик проверен\nverified" as verified #E3F3E8
+
+[*] --> checking : start
+checking --> verified : approve
+verified --> checking : revise / emit customer_changed\nполучателям из orders
+
+legend bottom
+  Пользовательские действия выполняет проверяющий.
+  approve сохраняется как последнее успешное действие заказчика.
+  При пустой orders команда revise отклоняется.
+  Если адресат есть, отказ доставки фиксируется отдельной записью.
+endlegend
+@enduml
