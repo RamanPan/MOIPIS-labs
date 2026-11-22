@@ -1,0 +1,284 @@
+{
+  "catalog": {
+    "schemaVersion": 1,
+    "classes": [
+      {
+        "id": "order",
+        "title": "Заказ",
+        "parameters": [
+          {
+            "id": "amount",
+            "title": "Сумма",
+            "type": "decimal",
+            "min": 1,
+            "max": 100000
+          }
+        ]
+      },
+      {
+        "id": "company",
+        "title": "Заказчик",
+        "parameters": [
+          {
+            "id": "name",
+            "title": "Название",
+            "type": "string"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "manager",
+        "title": "Менеджер"
+      },
+      {
+        "id": "reviewer",
+        "title": "Проверяющий"
+      }
+    ],
+    "users": [
+      {
+        "id": "manager",
+        "name": "Менеджер",
+        "roles": [
+          "manager"
+        ]
+      },
+      {
+        "id": "reviewer",
+        "name": "Проверяющий",
+        "roles": [
+          "reviewer"
+        ]
+      }
+    ],
+    "templates": [
+      {
+        "id": "order-process",
+        "title": "Подготовка заказа",
+        "classId": "order",
+        "createRoles": [
+          "manager"
+        ],
+        "actions": [
+          {
+            "id": "submit",
+            "title": "Подготовить"
+          },
+          {
+            "id": "confirm",
+            "title": "Подтвердить"
+          },
+          {
+            "id": "return",
+            "title": "Вернуть"
+          }
+        ],
+        "predicates": [
+          {
+            "id": "amount_valid",
+            "title": "Сумма допустима",
+            "parameterId": "amount",
+            "operator": "in_range"
+          },
+          {
+            "id": "customer_verified",
+            "title": "customer_verified",
+            "operator": "=",
+            "value": "verified",
+            "relatedProcess": {
+              "link": "customer",
+              "field": "state",
+              "aggregate": "all"
+            }
+          },
+          {
+            "id": "customer_approved",
+            "title": "customer_approved",
+            "operator": "=",
+            "value": "approve",
+            "relatedProcess": {
+              "link": "customer",
+              "field": "last_action",
+              "aggregate": "all"
+            }
+          }
+        ],
+        "states": [
+          {
+            "id": "preparing",
+            "title": "Подготовка",
+            "roles": [
+              "manager"
+            ],
+            "initial": true,
+            "final": false
+          },
+          {
+            "id": "ready",
+            "title": "Готов к подтверждению",
+            "roles": [
+              "manager"
+            ],
+            "initial": false,
+            "final": false
+          },
+          {
+            "id": "done",
+            "title": "Подтверждён",
+            "roles": [
+              "manager"
+            ],
+            "initial": false,
+            "final": true
+          }
+        ],
+        "transitions": [
+          {
+            "from": "preparing",
+            "action": "submit",
+            "to": "ready",
+            "condition": {
+              "groups": [
+                [
+                  {
+                    "predicateId": "amount_valid",
+                    "negated": false
+                  },
+                  {
+                    "predicateId": "customer_verified",
+                    "negated": false
+                  },
+                  {
+                    "predicateId": "customer_approved",
+                    "negated": false
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "from": "ready",
+            "action": "confirm",
+            "to": "done",
+            "condition": {
+              "groups": [
+                [
+                  {
+                    "predicateId": "amount_valid",
+                    "negated": false
+                  },
+                  {
+                    "predicateId": "customer_verified",
+                    "negated": false
+                  },
+                  {
+                    "predicateId": "customer_approved",
+                    "negated": false
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "from": "ready",
+            "action": "return",
+            "to": "preparing"
+          }
+        ],
+        "eventTransitions": [
+          {
+            "from": "ready",
+            "event": "customer_changed",
+            "sourceLink": "customer",
+            "to": "preparing"
+          }
+        ]
+      },
+      {
+        "id": "company-process",
+        "title": "Проверка заказчика",
+        "classId": "company",
+        "createRoles": [
+          "reviewer"
+        ],
+        "actions": [
+          {
+            "id": "approve",
+            "title": "Одобрить"
+          },
+          {
+            "id": "revise",
+            "title": "Назначить повторную проверку"
+          }
+        ],
+        "predicates": [],
+        "states": [
+          {
+            "id": "checking",
+            "title": "Проверка заказчика",
+            "roles": [
+              "reviewer"
+            ],
+            "initial": true,
+            "final": false
+          },
+          {
+            "id": "verified",
+            "title": "Заказчик проверен",
+            "roles": [
+              "reviewer"
+            ],
+            "initial": false,
+            "final": false
+          }
+        ],
+        "transitions": [
+          {
+            "from": "checking",
+            "action": "approve",
+            "to": "verified"
+          },
+          {
+            "from": "verified",
+            "action": "revise",
+            "to": "checking",
+            "emit": [
+              {
+                "event": "customer_changed",
+                "recipientLink": "orders"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "objects": [],
+    "history": []
+  },
+  "objects": [
+    {
+      "id": "order-1",
+      "classId": "order",
+      "values": {
+        "amount": 5000
+      },
+      "links": {
+        "customer": [
+          "company-1"
+        ]
+      }
+    },
+    {
+      "id": "company-1",
+      "classId": "company",
+      "values": {
+        "name": "Заказчик № 1"
+      },
+      "links": {
+        "orders": []
+      }
+    }
+  ]
+}

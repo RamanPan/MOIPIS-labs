@@ -151,7 +151,7 @@ public final class WorkflowServerProcess implements AutoCloseable {
     /**
      * Определяет каталог проекта {@code lab1} (через system property, env переменную или путь по умолчанию).
      */
-    private static Path lab1Directory() {
+    static Path lab1Directory() {
         String override = System.getProperty("lab1.dir", System.getenv("LAB1_DIR"));
         Path directory = override != null ? Path.of(override) : Path.of("").toAbsolutePath().resolveSibling("lab1");
         if (!Files.isRegularFile(directory.resolve("pom.xml"))) {
