@@ -83,6 +83,38 @@ class ErrorHandlingBlackBoxTest {
     }
 
     /**
+     * Тест-кейс: три разных способа вызвать недействительное действие — выдуманный id, зарезервированное
+     * служебное имя {@code update_parameter} (используется только внутри PATCH-обработчика параметров и
+     * не должно быть вызываемо как обычное действие) и действие {@code approve}, которое существует в
+     * шаблоне, но не имеет исходящего перехода именно из текущего состояния {@code registration} (объект
+     * ещё не прошёл {@code complete}) — все три дают 409 {@code INVALID_ACTION}, а не 400/404 и не
+     * {@code CONDITION_NOT_MET}: это разные причины отказа, и перепутать их — отдельный класс ошибок.
+     * Ни один из трёх отказов не меняет объект/историю/файл, а сам объект остаётся полностью
+     * работоспособным — обычное {@code complete} после них всё равно проходит.
+     */
+    @Test
+    @Description
+    @DisplayName("Несуществующее, служебное и недоступное из текущего состояния действие — 409 INVALID_ACTION, не CONDITION_NOT_MET")
+    @Story("Права и условия перехода")
+    @Severity(SeverityLevel.CRITICAL)
+    void invalidActionsAreRejectedAsInvalidActionNotConditionNotMet() throws Exception {
+        var server = SharedServer.get();
+        String root = createOfficeOrder(server, 100);
+        unchanged(server, "POST", root + "/actions", """
+                {"userId":"user_manager","actionId":"no_such_action"}
+                """, 409, "INVALID_ACTION");
+        unchanged(server, "POST", root + "/actions", """
+                {"userId":"user_manager","actionId":"update_parameter"}
+                """, 409, "INVALID_ACTION");
+        unchanged(server, "POST", root + "/actions", """
+                {"userId":"user_manager","actionId":"approve"}
+                """, 409, "INVALID_ACTION");
+        assertEquals(200, server.send("POST", root + "/actions", """
+                {"userId":"user_manager","actionId":"complete"}
+                """).statusCode());
+    }
+
+    /**
      * Тест-кейс: некорректные или семантически неверные тела запросов все возвращаются как 400 в
      * одном консистентном JSON-формате — невалидный/отсутствующий JSON, неожиданное поле
      * {@code stateId} при создании, значение параметра неверного типа или отсутствующее, неизвестный
