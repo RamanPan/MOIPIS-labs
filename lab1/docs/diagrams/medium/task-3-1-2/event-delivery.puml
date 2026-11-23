@@ -1,42 +1,84 @@
 @startuml
-title 3-1-2 · Событие от команды revise до результата доставки
+!pragma teoz true
+title 3-1-2 · Проверка связанного процесса и доставка события
 hide footbox
 skinparam shadowing false
-skinparam defaultFontSize 15
+skinparam defaultFontSize 13
+skinparam ParticipantPadding 6
+skinparam maxMessageSize 170
 
-actor "Проверяющий" as Reviewer
-participant CoordinationSession as Session
-participant "Очередь FIFO\nв памяти" as Queue
+actor "Менеджер /\nпроверяющий" as User
+boundary "Браузер" as Browser
+participant "CoordinationWebApplication\nCoordinationWebController" as Web
+participant CoordinationScenario as Scenario
+database "coordination-3-1-2.json\nИсходные данные" as Seed
+participant "CatalogService\nTemplateCatalogService" as Catalog
+control CoordinationSession as Session
+participant WorkflowAccessPolicy as Roles
+participant "DefaultCondition\nEvaluator" as Evaluator
+collections "Память сеанса\nОбъекты, связи,\nшаблоны и снимки" as Memory
+queue "ArrayDeque\nОчередь в памяти" as Queue
 participant CoordinationJournal as Journal
+database "journal.jsonl\nКоманды и доставки" as Log
 
-Reviewer -> Session : action(reviewer, company-1, revise)
-Session -> Session : Проверить роль и переход из verified
-Session -> Session : Найти адресатов по orders
-alt Связь orders пуста
-  Session -> Journal : ACTION · REJECTED · EMPTY_RECIPIENT_LINK
-  Session --> Reviewer : Компания остаётся в verified
-else Адресаты найдены
-  Session -> Session : Подготовить сообщение с parentId = id команды
-  Session -> Journal : ACTION · SUCCESS · verified → checking
-  Session -> Session : Сохранить снимок компании
-  Session -> Queue : Добавить customer_changed
-  loop Пока очередь содержит сообщения
-    Session -> Queue : Взять следующее сообщение
-    Queue --> Session : ProcessMessage
-    Session -> Session : Найти процесс получателя и выбрать переход
-    alt Заказ в ready и источник входит в customer
-      Session -> Journal : EVENT · SUCCESS · ready → preparing
-      Session -> Session : Сохранить состояние заказа\nс прежним lastActionId
-    else Процесс получателя не запущен
-      Session -> Journal : EVENT · REJECTED · PROCESS_NOT_STARTED
-    else Переход недоступен или неоднозначен
-      Session -> Journal : EVENT · REJECTED или ERROR
+group Загрузка веб-сеанса
+  Web -> Scenario : demo() / open()
+  Scenario -> Seed : Прочитать JSON
+  Seed --> Scenario : Каталог и объекты
+  Scenario -> Catalog : Проверить модели
+  Scenario -> Session : Создать сеанс
+  Session -> Memory : Загрузить исходные данные
+end
+
+group submit · Подготовка заказа после запуска процессов
+  User -> Browser : «Подготовить»
+  Browser -> Web : POST команды
+  Web -> Session : action(..., submit)
+  Session -> Memory : Прочитать состояние заказа и шаблон
+  Session -> Roles : Проверить роль менеджера
+  Session -> Evaluator : Проверить сумму заказа (in_range)
+  Evaluator -> Catalog : getEffectiveParameters(classId)
+  Session -> Memory : По customer прочитать state и lastActionId
+  Session -> Journal : append(ACTION, результат)
+  Journal -> Log : Дописать строку JSONL
+  opt Условия выполнены и запись успешна
+    Session -> Memory : Заказ preparing → ready
+  end
+  Session --> Web : Result
+  Web --> Browser : HTTP-ответ
+end
+
+group revise · Переход заказчика и доставка события
+  User -> Browser : «Повторная проверка»
+  Browser -> Web : POST команды
+  Web -> Session : action(..., revise)
+  Session -> Memory : Прочитать состояние заказчика и шаблон
+  Session -> Roles : Проверить роль проверяющего
+  Session -> Session : Выбрать переход по revise
+  Session -> Memory : Получить адресатов по orders\nПустой список даёт отказ
+  Session -> Journal : append(ACTION, результат)
+  Journal -> Log : Дописать строку JSONL
+  opt Команда принята и запись успешна
+    Session -> Memory : Заказчик verified → checking
+    Session -> Queue : Добавить customer_changed с parentId команды
+    loop Для каждого сообщения в порядке FIFO
+      Session -> Queue : poll()
+      Queue --> Session : ProcessMessage
+      Session -> Memory : Прочитать снимок заказа и связь customer
+      Session -> Session : Подобрать переход по этапу, событию и отправителю
+      Session -> Journal : append(EVENT, результат)
+      Journal -> Log : Дописать строку JSONL
+      opt Переход найден и запись успешна
+        Session -> Memory : Заказ ready → preparing\nlastActionId сохраняется
+      end
     end
   end
-  Session --> Reviewer : Result(command, deliveries)
+  Session --> Web : Result(command, deliveries)
+  Web --> Browser : Команда и доставки
 end
+
 note over Session, Journal
-  Отказ доставки не отменяет переход компании.
-  EVENT.parentId позволяет найти породивший шаг.
+  Если заказ не запущен, EVENT получает PROCESS_NOT_STARTED.
+  Переход заказчика в checking уже зафиксирован.
 end note
 @enduml

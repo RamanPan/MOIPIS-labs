@@ -1,46 +1,64 @@
 @startuml
-title 3-1-1 · Обработка команды и запись результата
+!pragma teoz true
+title 3-1-1 · Запуск и выполнение команды Б.3
 hide footbox
 skinparam shadowing false
-skinparam defaultFontSize 15
+skinparam defaultFontSize 13
+skinparam ParticipantPadding 6
+skinparam maxMessageSize 170
 
 actor "Пользователь" as User
-participant "Консоль\nили браузер" as Input
+boundary "Браузер" as Browser
+participant "Task311WebApplication\nTask311ApiController" as Web
+participant CoordinationScenario as Scenario
+database "task-3-1-1.json\nИсходные данные" as Seed
+participant "CatalogService\nTemplateCatalogService" as Catalog
 participant Task311Commands as Commands
-participant CoordinationSession as Session
-participant "WorkflowAccessPolicy\nи вычислитель предикатов" as Checks
+control CoordinationSession as Session
+participant WorkflowAccessPolicy as Roles
+participant "DefaultCondition\nEvaluator" as Evaluator
+collections "Память сеанса\nОбъекты, шаблоны,\nснимки процессов" as Memory
 participant CoordinationJournal as Journal
+database "journal.jsonl\nРезультаты команд" as Log
 
-User -> Input : Запустить процесс или выполнить действие
-Input -> Commands : submit(rawCommand)
-Commands -> Commands : Разобрать JSON и извлечь поля
-Commands -> Session : submit(kind, userId, objectId, actionId, command)
-alt Некорректная команда
-  Session -> Journal : append(ERROR, INVALID_COMMAND, before → before)
-else Команда разобрана
-  Session -> Session : Найти объект и шаблон его точного класса
+group Загрузка веб-сеанса
+  Web -> Scenario : task311() / openTask311()
+  Scenario -> Seed : Прочитать JSON
+  Seed --> Scenario : Каталог и объекты
+  Scenario -> Catalog : Проверить модели
+  Scenario -> Session : Создать сеанс
+  Session -> Memory : Загрузить исходные данные\n(процессы ещё не запущены)
+end
+
+User -> Browser : Запуск или действие
+Browser -> Web : POST /api/commands
+Web -> Commands : submit(rawCommand)
+Commands -> Session : submit(...)\nТип, ID и исходный JSON
+
+opt Команда имеет обязательные поля
+  Session -> Memory : Найти объект, шаблон его класса и снимок
   alt START
-    Session -> Session : Проверить, что процесс ещё не запущен
-    Session -> Checks : Проверить createRoles
-    Session -> Session : Найти единственное начальное состояние
+    Session -> Roles : hasRole(user, createRoles)
+    Session -> Session : Выбрать начальное состояние
   else ACTION
-    Session -> Session : Прочитать снимок и проверить этап
-    Session -> Checks : Проверить роль текущего состояния
-    Session -> Session : Отобрать переходы по состоянию и действию
-    Session -> Checks : Вычислить локальные предикаты для ДНФ
+    Session -> Roles : requireStateAccess(user, state)
+    Session -> Session : Найти переходы по состоянию и действию
+    opt У перехода задано условие
+      Session -> Session : Вычислить ДНФ
+      Session -> Evaluator : evaluatePredicate(...)
+      Evaluator -> Catalog : getEffectiveParameters(classId)
+    end
     Session -> Session : Выбрать единственный подходящий переход
   end
-  alt Шаг принят, запись успешна
-    Session -> Journal : append(SUCCESS, before → after)
-    Session -> Session : Сохранить новый ProcessSnapshot
-  else Отказ или ошибка шага
-    Session -> Journal : append(REJECTED / ERROR, before → before)
-  end
+end
+
+Session -> Journal : append(Entry)\nSUCCESS, REJECTED или ERROR
+Journal -> Log : Дописать строку JSONL
+opt Шаг принят и запись успешна
+  Session -> Memory : Сохранить ProcessSnapshot
 end
 Session --> Commands : Entry
-Commands --> Input : Исход, состояния и причина
-Input --> User : Показать результат
-note over Session, Journal
-  При ошибке записи новый снимок не публикуется.
-end note
+Commands --> Web : Результат команды
+Web --> Browser : HTTP-ответ с результатом
+Browser --> User : Состояние или причина отказа
 @enduml
