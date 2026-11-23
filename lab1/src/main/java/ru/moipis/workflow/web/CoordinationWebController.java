@@ -48,6 +48,7 @@ final class CoordinationWebController {
                 .result(session.journalText()));
     }
 
+    /** Возвращает карточки обоих процессов и журнал из одного снимка сеанса. */
     private void snapshot(Context ctx) throws IOException {
         var snapshot = session.snapshot();
         ctx.json(new Dashboard(objects.stream()
@@ -67,6 +68,7 @@ final class CoordinationWebController {
                 operations(template, stateId), object.links());
     }
 
+    /** Подбирает пользователя по роли и формирует операции для текущего состояния. */
     private List<Operation> operations(ProcessTemplate template, String stateId) {
         if (stateId == null) {
             return users.stream().filter(user -> WorkflowAccessPolicy.hasRole(user, template.createRoles()))
@@ -85,6 +87,10 @@ final class CoordinationWebController {
                 .map(action -> new Operation("action", action.id(), action.title(), user.id(), user.name())).toList();
     }
 
+    /**
+     * Проверяет поля запроса и передаёт запуск или действие в сеанс 3-1-2.
+     * Ответ включает исходную команду и все попытки доставки её событий.
+     */
     private void command(Context ctx) throws IOException {
         var request = ctx.bodyAsClass(Command.class);
         if (request == null || blank(request.type()) || blank(request.userId()) || blank(request.objectId())) {

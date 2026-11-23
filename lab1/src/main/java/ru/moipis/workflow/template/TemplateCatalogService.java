@@ -80,6 +80,7 @@ public final class TemplateCatalogService {
                 List.copyOf(templates), store.objects(), store.history());
     }
 
+    /** Возвращает шаблоны после проверки каталога и ссылок внутри шаблонов. */
     public List<ProcessTemplate> getTemplates() throws IOException {
         return loadTemplates().byId().values().stream().map(TemplateCatalogService::snapshot).toList();
     }
@@ -134,6 +135,10 @@ public final class TemplateCatalogService {
         throw new NoTemplateForClassException(classId);
     }
 
+    /**
+     * Проверяет роли, состояния, действия, предикаты и ссылки из переходов шаблона.
+     * Для предиката связанного процесса также проверяет оператор сравнения и значение.
+     */
     private void validateReferences(ProcessTemplate template, Set<String> roleIds) {
         Set<String> parameterIds = classes.getEffectiveParameters(template.classId()).keySet();
         Set<String> actionIds = indexById(template.actions(), ActionDefinition::id, "Action").keySet();
@@ -176,6 +181,7 @@ public final class TemplateCatalogService {
         }
     }
 
+    /** Проверяет, что каждый литерал ДНФ ссылается на объявленный предикат шаблона. */
     private static void validateCondition(DnfCondition condition, Set<String> predicates, String templateId) {
         if (condition == null) {
             return;

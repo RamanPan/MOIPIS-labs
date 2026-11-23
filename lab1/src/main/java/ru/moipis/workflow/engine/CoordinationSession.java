@@ -31,8 +31,14 @@ import java.util.stream.Collectors;
 import static ru.moipis.workflow.engine.CoordinationJournal.Kind.*;
 import static ru.moipis.workflow.engine.CoordinationJournal.Outcome.*;
 
+/**
+ * Исполняет шаблоны задач 3-1-1 и 3-1-2 и хранит снимки процессов в памяти.
+ * Синхронизированные точки входа последовательно обрабатывают команды одного сеанса.
+ */
 public final class CoordinationSession {
+    /** Текущий этап объекта и последнее успешное пользовательское действие, если оно было. */
     public record ProcessSnapshot(String stateId, String lastActionId) {}
+    /** Запись исходной команды и записи всех попыток доставки порождённых событий. */
     public record Result(Entry command, List<Entry> deliveries) {}
     public record Snapshot(Map<String, ProcessSnapshot> processes, List<Entry> journal) {}
 
@@ -86,14 +92,20 @@ public final class CoordinationSession {
         return journal.text();
     }
 
+    /** Запускает процесс для готового объекта от имени указанного пользователя. */
     public synchronized Result start(String userId, String objectId) throws IOException {
         return execute(new Step(id(), START, objectId, userId, null, null, null));
     }
 
+    /** Применяет действие пользователя к текущему состоянию процесса объекта. */
     public synchronized Result action(String userId, String objectId, String actionId) throws IOException {
         return execute(new Step(id(), ACTION, objectId, userId, actionId, null, null));
     }
 
+    /**
+     * Принимает разобранную команду 3-1-1 вместе с исходным JSON для журнала.
+     * Если обязательных полей не хватает, пишет {@code INVALID_COMMAND}.
+     */
     synchronized Entry submit(Kind kind, String userId, String objectId, String actionId, JsonNode command) throws IOException {
         var step = new Step(id(), kind, objectId, userId, actionId, null, command);
         if (kind == null || userId == null || objectId == null || kind == ACTION && actionId == null) {
@@ -103,6 +115,10 @@ public final class CoordinationSession {
         return execute(step).command();
     }
 
+    /**
+     * Выполняет команду, затем обрабатывает очередь событий в порядке добавления.
+     * Каждая доставка возвращает отдельную запись, включая отказы получателя.
+     */
     private Result execute(Step step) throws IOException {
         Entry command = process(step);
         var deliveries = new ArrayList<Entry>();
@@ -113,6 +129,10 @@ public final class CoordinationSession {
         return new Result(command, List.copyOf(deliveries));
     }
 
+    /**
+     * Проверяет и фиксирует один шаг: запуск, пользовательское действие или доставку.
+     * При отказе записывает прежний снимок как состояние до и после шага.
+     */
     private Entry process(Step step) throws IOException {
         ProcessSnapshot before = processes.get(step.objectId());
         var object = step.objectId() == null ? null : objects.get(step.objectId());
@@ -120,6 +140,7 @@ public final class CoordinationSession {
         List<ProcessMessage> outgoing = List.of();
         try {
             require(object != null, "UNKNOWN_OBJECT");
+            // Шаблон ищется по точному классу объекта. Иерархия классов используется для параметров.
             ProcessTemplate template = templates.get(object.classId());
             if (step.kind() == START) {
                 require(before == null, "PROCESS_ALREADY_STARTED");
@@ -137,6 +158,7 @@ public final class CoordinationSession {
                 Transition transition = step.kind() == ACTION
                         ? selectAction(step, object, template, state) : selectEvent(step, object, template, state);
                 outgoing = outgoing(step, object, transition.emit());
+                // Переход по событию сохраняет последнее успешное пользовательское действие.
                 after = new ProcessSnapshot(transition.target(),
                         step.kind() == ACTION ? step.action() : before.lastActionId());
             }
@@ -147,12 +169,17 @@ public final class CoordinationSession {
         } catch (IllegalArgumentException failure) {
             return record(step, before, before, ERROR, "TEMPLATE_ERROR: " + failure.getMessage());
         }
+        // Публикуем снимок и сообщения только после успешной записи результата.
         Entry entry = record(step, before, after, SUCCESS, null);
         processes.put(step.objectId(), after);
         queue.addAll(outgoing);
         return entry;
     }
 
+    /**
+     * Проверяет роль и отбирает переходы по текущему состоянию и действию.
+     * Из кандидатов должен остаться один переход с истинным условием.
+     */
     private Transition selectAction(Step step, ConfiguredObject object, ProcessTemplate template,
                                     StateDefinition state) {
         WorkflowAccessPolicy.requireStateAccess(user(step.userId()), state);
@@ -177,6 +204,10 @@ public final class CoordinationSession {
         return new Transition(transition.to(), transition.emit());
     }
 
+    /**
+     * Ищет переход получателя по состоянию, имени события, связи с отправителем и условию.
+     * Источник уже прошёл проверку пользовательской команды при отправке события.
+     */
     private Transition selectEvent(Step step, ConfiguredObject object, ProcessTemplate template,
                                    StateDefinition state) {
         ProcessMessage event = step.message();
@@ -192,6 +223,10 @@ public final class CoordinationSession {
         return evaluate(condition, object, template).matches();
     }
 
+    /**
+     * Вычисляет ДНФ для перехода. Внутри группы действует И, между группами действует ИЛИ.
+     * При отказе возвращает пояснения о ложных литералах каждой группы.
+     */
     private ConditionResult evaluate(DnfCondition condition, ConfiguredObject object, ProcessTemplate template) {
         if (condition == null) {
             return new ConditionResult(true, List.of());
@@ -207,6 +242,7 @@ public final class CoordinationSession {
                 boolean value = predicate.relatedProcess() == null
                         ? evaluator.evaluatePredicate(predicate, context)
                         : relatedMatches(predicate, object);
+                // Отрицание применяется к готовому результату предиката, включая агрегацию по связи.
                 if (literal.negated()) value = !value;
                 if (!value) groupFailures.add(describe(predicate, object, literal.negated()));
             }
@@ -216,6 +252,10 @@ public final class CoordinationSession {
         return new ConditionResult(false, failed);
     }
 
+    /**
+     * Проверяет состояние или последнее успешное действие всех процессов по указанной связи.
+     * Пустая связь, незапущенный процесс или отсутствующее поле дают ложь.
+     */
     private boolean relatedMatches(PredicateDefinition predicate, ConfiguredObject object) {
         var related = predicate.relatedProcess();
         List<String> linked = object.linkedObjects(related.link());
@@ -228,6 +268,7 @@ public final class CoordinationSession {
         });
     }
 
+    /** Формирует пояснение отказа. Для параметра показывает его значение и проверяемое правило. */
     private String describe(PredicateDefinition predicate, ConfiguredObject object, boolean negated) {
         String expectation = negated ? "должно быть ложным" : "должно быть истинным";
         if (predicate.relatedProcess() != null) return predicate.title() + " — " + expectation;
@@ -243,6 +284,10 @@ public final class CoordinationSession {
         return title + " = " + value + ". Условие «" + rule + "» " + expectation;
     }
 
+    /**
+     * Готовит сообщение для каждого получателя из именованной связи.
+     * Пустая связь отклоняет исходный шаг до записи успеха и изменения состояния.
+     */
     private List<ProcessMessage> outgoing(Step step, ConfiguredObject object, List<EventEmission> emissions) {
         List<ProcessMessage> messages = new ArrayList<>();
         for (EventEmission emission : emissions) {
@@ -266,6 +311,7 @@ public final class CoordinationSession {
         return record(step, before, after, outcome, reason, null);
     }
 
+    /** Создаёт запись журнала. Для доставки указывает ID породившей операции в {@code parentId}. */
     private Entry record(Step step, ProcessSnapshot before, ProcessSnapshot after, Outcome outcome, String reason,
                          String explanation) throws IOException {
         var message = step.message();
@@ -292,6 +338,10 @@ public final class CoordinationSession {
         }
     }
 
+    /**
+     * Возвращает единственного кандидата. Пустой список даёт указанную причину отказа или ошибки,
+     * а несколько кандидатов означают неоднозначность перехода.
+     */
     private static <T> T exactlyOne(List<T> matches, String missing, Outcome missingOutcome) {
         if (matches.isEmpty()) {
             throw new StepFailure(missingOutcome, missing);

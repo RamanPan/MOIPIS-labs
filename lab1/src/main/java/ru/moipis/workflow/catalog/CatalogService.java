@@ -45,6 +45,10 @@ public final class CatalogService {
         return definition;
     }
 
+    /**
+     * Собирает параметры от корневого класса к указанному классу.
+     * Определение потомка заменяет родительское целиком при совпадении ID и типа.
+     */
     public Map<String, ParameterDefinition> getEffectiveParameters(String classId) {
         Map<String, ParameterDefinition> effective = new LinkedHashMap<>();
         for (ObjectClassDefinition definition : getLineage(classId).reversed()) {
@@ -61,6 +65,7 @@ public final class CatalogService {
         return Collections.unmodifiableMap(effective);
     }
 
+    /** Проверяет, совпадает ли ожидаемый класс с указанным классом или одним из предков. */
     public boolean isInstanceOf(String classId, String expectedClassId) {
         getClass(expectedClassId);
         return getLineage(classId).stream().anyMatch(definition -> definition.id().equals(expectedClassId));
@@ -71,6 +76,7 @@ public final class CatalogService {
         return List.copyOf(lineage.subList(1, lineage.size()));
     }
 
+    /** Возвращает цепочку от указанного класса до корня, обнаруживая циклы наследования. */
     private List<ObjectClassDefinition> getLineage(String classId) {
         List<ObjectClassDefinition> lineage = new ArrayList<>();
         Set<String> visited = new HashSet<>();

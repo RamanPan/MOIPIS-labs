@@ -49,6 +49,10 @@ public final class Task311Commands {
         return session.findProcess(objectId);
     }
 
+    /**
+     * Разбирает JSON-команду запуска или действия и передаёт её в сеанс.
+     * Если JSON повреждён, сохраняет исходную строку для записи об ошибке.
+     */
     public synchronized Entry submit(String rawCommand) throws IOException {
         JsonNode command;
         try {
@@ -73,6 +77,7 @@ public final class Task311Commands {
         return journal.entries();
     }
 
+    /** Читает состояния процессов и журнал для отображения текущего сеанса. */
     public synchronized Snapshot snapshot() throws IOException {
         return new Snapshot(session.processSnapshots(), journal.entries());
     }
@@ -81,6 +86,7 @@ public final class Task311Commands {
         return journal.text();
     }
 
+    /** Возвращает непустую строку из поля команды или {@code null}, если поле некорректно. */
     private static String argument(JsonNode command, String key) {
         JsonNode value = command.path(key);
         return value.isTextual() && !value.textValue().isBlank() ? value.textValue() : null;

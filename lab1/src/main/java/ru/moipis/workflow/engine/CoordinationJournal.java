@@ -14,6 +14,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Файловый журнал команд и попыток доставки. Каждая операция занимает одну строку JSONL. */
 public final class CoordinationJournal {
     public enum Kind { START, ACTION, EVENT }
     public enum Outcome { SUCCESS, REJECTED, ERROR }
@@ -32,6 +33,7 @@ public final class CoordinationJournal {
         Files.createDirectories(this.path.getParent());
     }
 
+    /** Дописывает запись в UTF-8. При сбое записи пытается вернуть файлу прежнюю длину. */
     void append(Entry entry) throws IOException {
         var line = StandardCharsets.UTF_8.encode(mapper.writeValueAsString(entry) + "\n");
         try (var channel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
@@ -52,10 +54,12 @@ public final class CoordinationJournal {
         }
     }
 
+    /** Возвращает исходный текст журнала для выгрузки или пустую строку до первой записи. */
     String text() throws IOException {
         return Files.notExists(path) ? "" : Files.readString(path);
     }
 
+    /** Читает журнал построчно и возвращает записи в порядке их добавления. */
     List<Entry> entries() throws IOException {
         var result = new ArrayList<Entry>();
         for (String line : text().lines().toList()) {

@@ -21,6 +21,10 @@ final class ParameterValues {
         return copy;
     }
 
+    /**
+     * Проверяет наличие определения и соответствие значения типу параметра.
+     * Диапазон значений проверяется отдельно при вычислении предиката {@code in_range}.
+     */
     static void validate(String id, JsonNode value, Map<String, ParameterDefinition> definitions) {
         ParameterDefinition definition = definitions.get(id);
         if (definition == null) {

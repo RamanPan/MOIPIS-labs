@@ -8,9 +8,14 @@ import java.util.Set;
 
 import static ru.moipis.workflow.engine.exception.WorkflowError.*;
 
+/** Общие проверки ролей для запуска и пользовательских действий процесса. */
 public final class WorkflowAccessPolicy {
     private WorkflowAccessPolicy() { }
 
+    /**
+     * Проверяет, что хотя бы одна роль пользователя входит в разрешённый набор.
+     * При запуске набор берётся из шаблона, при действии — из текущего состояния.
+     */
     public static boolean hasRole(UserDefinition user, Set<String> roles) {
         return user.roles() != null && roles != null && user.roles().stream().anyMatch(roles::contains);
     }
@@ -19,6 +24,10 @@ public final class WorkflowAccessPolicy {
         return !state.terminal() && hasRole(user, state.roles());
     }
 
+    /**
+     * Требует незавершённый этап и роль, разрешённую на этом этапе.
+     * При нарушении выбрасывает {@link WorkflowException} с кодом причины.
+     */
     static void requireStateAccess(UserDefinition user, StateDefinition state) {
         if (state.terminal()) {
             throw new WorkflowException(FINAL_STATE, "Object is in final state: " + state.id());

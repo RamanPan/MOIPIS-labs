@@ -54,6 +54,10 @@ final class Task311ApiController {
                 .result(commands.journalText()));
     }
 
+    /**
+     * Передаёт JSON-команду в общий обработчик 3-1-1 и преобразует результат в HTTP-ответ.
+     * При отказе возвращает код причины и ID записи журнала.
+     */
     private void command(Context ctx) {
         CoordinationJournal.Entry entry;
         try {

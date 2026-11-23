@@ -11,6 +11,7 @@ import ru.moipis.workflow.engine.Task311Commands;
 import ru.moipis.workflow.engine.WorkflowAccessPolicy;
 import ru.moipis.workflow.template.model.ProcessTemplate;
 import ru.moipis.workflow.template.model.StateDefinition;
+import ru.moipis.workflow.template.model.TransitionDefinition;
 import ru.moipis.workflow.web.dto.ObjectDetailsDto;
 import ru.moipis.workflow.web.dto.ObjectSummaryDto;
 import ru.moipis.workflow.web.dto.ProcessGraphDto;
@@ -63,6 +64,7 @@ final class Task311QueryAdapter {
                 Comparator.nullsLast(Comparator.reverseOrder())).thenComparing(ObjectSummaryDto::id)).toList();
     }
 
+    /** Готовит данные карточки объекта с текущим этапом и унаследованными определениями параметров. */
     ObjectDetailsDto details(String objectId) {
         var object = object(objectId);
         var template = template(object);
@@ -75,6 +77,7 @@ final class Task311QueryAdapter {
                 template == null ? null : template.id(), object.values(), definitions);
     }
 
+    /** Строит граф по шаблону точного класса и отмечает текущее состояние, если процесс запущен. */
     ProcessGraphDto process(String objectId) {
         var object = object(objectId);
         var template = template(object);
@@ -87,6 +90,10 @@ final class Task311QueryAdapter {
                         actionTitle(template, transition.action()))).toList());
     }
 
+    /**
+     * Готовит кнопки запуска и действий с учётом текущего состояния и ролей пользователя.
+     * ДНФ переходов проверяется при отправке команды в сеанс.
+     */
     Task311AccessDto access(String objectId, String userId) {
         var object = object(objectId);
         var user = user(userId);
@@ -97,7 +104,7 @@ final class Task311QueryAdapter {
         if (state != null && !state.terminal()) {
             boolean allowed = WorkflowAccessPolicy.hasRole(user, state.roles());
             actions = template.transitions().stream().filter(transition -> transition.from().equals(state.id()))
-                    .map(transition -> transition.action()).distinct()
+                    .map(TransitionDefinition::action).distinct()
                     .map(id -> new Task311AccessDto.StateActionDto(id, actionTitle(template, id), allowed)).toList();
         }
         return new Task311AccessDto(state == null ? null : state.id(), startBlockedReason == null, startBlockedReason,

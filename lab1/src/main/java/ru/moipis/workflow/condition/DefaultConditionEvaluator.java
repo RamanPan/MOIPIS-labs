@@ -15,6 +15,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+/**
+ * Вычисляет условия по параметрам и классу объекта. Сеанс лабораторных задач
+ * вызывает этот класс для отдельных локальных предикатов.
+ */
 public final class DefaultConditionEvaluator implements ConditionEvaluator {
 
     private static final Set<String> OPERATORS = Set.of("filled", "=", "!=", "<", "<=", ">", ">=", "in_range");
@@ -48,6 +52,7 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
         });
     }
 
+    /** Применяет отрицания к результатам предикатов и ищет группу, где все литералы истинны. */
     public static boolean evaluateDnf(DnfCondition condition, Predicate<String> predicateMatches) {
         if (condition == null) {
             return true;
@@ -57,7 +62,7 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
             for (ConditionLiteral literal : required(group, "Condition group")) {
                 required(literal, "Condition literal");
                 boolean value = predicateMatches.test(literal.predicateId());
-                if (literal.negated() ? value : !value) {
+                if (literal.negated() == value) {
                     matches = false;
                     break;
                 }
@@ -70,6 +75,7 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
     }
 
     @Override
+    /** Вычисляет один локальный предикат по значениям объекта и определениям его фактического класса. */
     public boolean evaluatePredicate(PredicateDefinition predicate, ConditionContext context) {
         required(context, "Condition context");
         return evaluatePredicate(predicate, context, classes.getEffectiveParameters(context.classId()));
@@ -99,6 +105,7 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
                     .formatted(operator, definition.id(), definition.type()));
         }
         JsonNode actual = context.parameters().get(definition.id());
+        // Для filled пустая строка считается заданным значением, а null и отсутствующее поле — нет.
         boolean filled = actual != null && !actual.isNull() && !actual.isMissingNode();
         if (operator.equals("filled")) {
             return filled;
@@ -106,6 +113,7 @@ public final class DefaultConditionEvaluator implements ConditionEvaluator {
         if (!filled) {
             return false;
         }
+        // Диапазон берётся из определения фактического класса, включая переопределённые границы.
         if (operator.equals("in_range")) {
             BigDecimal numeric = definition.type().equals("integer")
                     ? new BigDecimal(integer(actual)) : decimal(actual);

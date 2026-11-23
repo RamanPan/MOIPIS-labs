@@ -18,7 +18,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
 
+/** Исходные данные лабораторного сценария: каталог моделей и готовые объекты. */
 public record CoordinationScenario(StoreData catalog, List<ConfiguredObject> objects) {
+    /** Читает сценарий из JSON, сохраняя точность дробных значений параметров. */
     public static CoordinationScenario read(InputStream input) throws IOException {
         return new ObjectMapper().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
                 .readValue(input, CoordinationScenario.class);
@@ -38,10 +40,12 @@ public record CoordinationScenario(StoreData catalog, List<ConfiguredObject> obj
         }
     }
 
+    /** Открывает сеанс 3-1-2 с поддержкой связанных процессов и событий. */
     public CoordinationSession open(Path log) throws IOException {
         return open(new CoordinationJournal(log), false).session();
     }
 
+    /** Открывает сеанс 3-1-1 и возвращает обработчик JSON-команд для консоли и HTTP. */
     public Task311Commands openTask311(Path log) throws IOException {
         var journal = new CoordinationJournal(log);
         var opened = open(journal, true);
@@ -50,6 +54,10 @@ public record CoordinationScenario(StoreData catalog, List<ConfiguredObject> obj
 
     private record Opened(List<ConfiguredObject> objects, CoordinationSession session) {}
 
+    /**
+     * Собирает каталог и проверяет шаблоны, типы параметров, ID объектов и их связи.
+     * В режиме 3-1-1 подставляет значения по умолчанию и отклоняет правила координации.
+     */
     private Opened open(CoordinationJournal journal, boolean task311) throws IOException {
         CatalogService classes = new CatalogService(catalog.classes());
         var templates = new TemplateCatalogService(classes, new CatalogSnapshot(catalog), task311).getTemplates();
@@ -71,6 +79,7 @@ public record CoordinationScenario(StoreData catalog, List<ConfiguredObject> obj
                 parameters.forEach((id, definition) -> {
                     if (definition.defaultValue() != null) {
                         ParameterValues.validate(id, definition.defaultValue(), parameters);
+                        // Значение по умолчанию действует только при отсутствии ключа. Явный null сохраняется.
                         if (!values.containsKey(id)) {
                             values.put(id, definition.defaultValue());
                         }
